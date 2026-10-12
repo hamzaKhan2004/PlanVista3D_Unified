@@ -10,11 +10,11 @@ import {
   CheckCircle2,
   Cpu,
 } from "lucide-react";
-import Button from "../components/ui/Button";
+import Button from "../presentation/ui/Button";
 import UploadFloorPlan from "../features/image-generation/UploadFloorPlan";
-import ProjectCard from "../components/projects/ProjectCard";
-import { createProject, getProjects } from "../lib/puter/puter.action";
-import { getLocalModelProjects } from "../lib/api/modelApi";
+import ProjectCard from "../presentation/projects/ProjectCard";
+import { createProject, getProjects } from "../infrastructure/puter/puterStorage";
+import { loadModelProjects } from "../infrastructure/storage/projectStorage";
 
 const Home = () => {
   const navigate = useNavigate();
@@ -63,12 +63,12 @@ const Home = () => {
         const puterItems = await getProjects();
         const formattedPuter = (puterItems || []).slice(0, 4).map((i) => ({
           ...i,
-          type: "image",
+          type: "image_2d",
         }));
 
-        const localModels = (getLocalModelProjects() || []).slice(0, 4).map((i) => ({
+        const localModels = (loadModelProjects() || []).slice(0, 4).map((i) => ({
           ...i,
-          type: "model",
+          type: "model_3d",
         }));
 
         const combined = [...formattedPuter, ...localModels]
@@ -99,7 +99,7 @@ const Home = () => {
         </h1>
 
         <p className="text-lg sm:text-xl text-zinc-600 max-w-2xl mx-auto mt-6 leading-relaxed">
-          PlanVista3D combines generative AI architectural visualization with parametric CAD-to-3D geometric mesh modeling in one unified studio.
+          PlanVista3D combines generative AI architectural visualization with customizable CAD 3D geometric modeling in one unified studio.
         </p>
 
         {/* Dual Mode Cards Call-To-Action */}
@@ -139,17 +139,17 @@ const Home = () => {
             </div>
           </div>
 
-          {/* Card 2: Geometric 3D CAD Reconstruction */}
+          {/* Card 2: Geometric 3D CAD Reconstruction & Customization */}
           <div className="card-warm relative overflow-hidden group hover:border-purple-300 transition-all flex flex-col justify-between p-8">
             <div className="space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center">
                 <Box className="w-6 h-6" />
               </div>
               <h2 className="font-serif text-3xl font-bold text-zinc-900">
-                Geometric 3D CAD Model
+                Customizable 3D CAD Studio
               </h2>
               <p className="text-sm text-zinc-600 leading-relaxed">
-                Extrude real geometric building meshes from CAD DXF vectors or segmented raster blueprints. Orbit 360°, inspect wall topology, customize colors, and export .GLB.
+                Extrude geometric building meshes from CAD DXF vectors or segmented raster blueprints. Inspect scene hierarchy, customize materials and transforms with undo/redo, and export .GLB.
               </p>
               <ul className="text-xs text-zinc-500 space-y-1.5 pt-2">
                 <li className="flex items-center gap-2">
@@ -159,16 +159,22 @@ const Home = () => {
                   <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> Parametric wall height, thickness, floors
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> WebGL Three.js orbit viewer & GLB export
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" /> Interactive CAD properties & undo/redo editing
                 </li>
               </ul>
             </div>
 
-            <div className="pt-8">
-              <Link to="/generate-model">
+            <div className="pt-8 flex flex-col sm:flex-row gap-2">
+              <Link to="/generate-model" className="flex-1">
                 <Button variant="secondary" size="md" fullWidth className="flex items-center justify-center gap-2 border-purple-200 hover:bg-purple-50/50">
-                  <span className="text-purple-700">Start 3D Model Generation</span>
+                  <span className="text-purple-700">Generate 3D Model</span>
                   <ArrowRight className="w-4 h-4 text-purple-700" />
+                </Button>
+              </Link>
+              <Link to="/cad-editor" className="sm:w-auto">
+                <Button variant="outline" size="md" className="flex items-center justify-center gap-1.5 text-xs text-zinc-700">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>CAD Workspace</span>
                 </Button>
               </Link>
             </div>
