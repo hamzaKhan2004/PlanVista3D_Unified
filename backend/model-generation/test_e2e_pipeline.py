@@ -5,7 +5,9 @@ import subprocess
 from app import resolve_blender_path, create_analysis_from_dxf, create_analysis_from_blueprint
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SAMPLE_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "PlanVista3D", "Blueprint Img"))
+MIGRATED_SAMPLE_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "samples", "blueprints"))
+LEGACY_SAMPLE_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "PlanVista3D", "Blueprint Img"))
+SAMPLE_DIR = MIGRATED_SAMPLE_DIR if os.path.exists(MIGRATED_SAMPLE_DIR) else LEGACY_SAMPLE_DIR
 
 def test_dxf_generation():
     print("[TEST] Starting DXF to GLB End-to-End Pipeline Test...")
