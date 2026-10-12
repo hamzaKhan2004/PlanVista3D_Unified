@@ -2,23 +2,23 @@
 
 ## 1. Overview
 
-This document specifies the exact communication contracts, HTTP endpoints, payloads, response schemas, and storage formats verified in the codebases.
+This document specifies the communication contracts, HTTP endpoints, payloads, response schemas, and storage formats of the unified application.
 
 ---
 
-## 2. PlanVista3D Backend API Contracts (Python Flask)
+## 2. Model-Generation Service (Python Flask)
 
 - **Base URL**: `http://localhost:5000` (Direct) or `http://localhost:5173/api` (via Vite proxy)
-- **CORS Allowed Origins**: `http://localhost:5173`
+- **CORS Allowed Origins**: `http://localhost:5173`, `http://localhost:5174`, `http://localhost:3000`, `http://127.0.0.1:5173`, `http://127.0.0.1:5174` (or configured via `CORS_ORIGIN`)
 - **Authentication**: None (Anonymous / Public)
 
 ---
 
-### Endpoint: File Upload & Job Creation
+### Endpoint: File Upload & Task Creation
 
 - **Route**: `POST /api/upload`
 - **Content-Type**: `multipart/form-data`
-- **Purpose**: Uploads a blueprint file and queues a background 3D reconstruction task.
+- **Purpose**: Uploads a blueprint file and queues an asynchronous 3D reconstruction task.
 
 #### Request Form Fields:
 | Field Name | Type | Required | Default | Description |
@@ -37,14 +37,8 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 ```
 
 #### Error Responses:
-- `400 Bad Request` (No file part):
-  ```json
-  { "error": "No file uploaded" }
-  ```
-- `400 Bad Request` (Invalid extension):
-  ```json
-  { "error": "Invalid file" }
-  ```
+- `400 Bad Request` (No file uploaded): `{ "error": "No file uploaded" }`
+- `400 Bad Request` (Invalid file format): `{ "error": "Invalid file format. Supported: PNG, JPG, JPEG, DXF" }`
 
 ---
 
@@ -52,25 +46,11 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 
 - **Route**: `GET /api/status/<task_id>`
 - **Content-Type**: `application/json`
-- **Purpose**: Polls the execution progress of an asynchronous reconstruction task.
-
-#### Job States:
-1. `queued`: Task registered, thread not yet started (`progress: 0`).
-2. `processing`: Analysis or Blender subprocess running (`progress: 10` -> `40` -> `50`).
-3. `completed`: GLB file produced and verified on disk (`progress: 100`).
-4. `error`: Exception thrown or Blender returned non-zero exit code (`progress: 0`).
+- **Purpose**: Polls execution progress and retrieves final model metadata.
 
 #### Responses by State:
 
-##### State 1: Queued / Initializing
-```json
-{
-  "status": "queued",
-  "progress": 0
-}
-```
-
-##### State 2: Processing (DXF Pipeline)
+##### State: Processing
 ```json
 {
   "status": "processing",
@@ -78,7 +58,7 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 }
 ```
 
-##### State 3: Completed (DXF Pipeline)
+##### State: Completed (DXF Pipeline)
 ```json
 {
   "status": "completed",
@@ -86,7 +66,7 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
   "model_file": "934e0155-5959-46a5-a0ed-51d89a132d86_model.glb",
   "analysis": {
     "pipeline": "dxf",
-    "model_size_bytes": 142856,
+    "model_size_bytes": 1100132,
     "floors": 3,
     "wall_height": 3.2,
     "wall_thickness": 0.25
@@ -94,7 +74,7 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 }
 ```
 
-##### State 4: Completed (Image Contour Pipeline)
+##### State: Completed (Image Contour Pipeline)
 ```json
 {
   "status": "completed",
@@ -102,18 +82,18 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
   "model_file": "0c7ede43-89de-44c8-ab31-cc434c7010c2_model.glb",
   "analysis": {
     "pipeline": "image",
-    "walls_detected": 14,
-    "doors_detected": 3,
-    "windows_detected": 6,
+    "walls_detected": 9,
+    "doors_detected": 0,
+    "windows_detected": 0,
     "rooms_detected": 1,
-    "model_size_bytes": 849312,
+    "model_size_bytes": 452048,
     "scale_factor": 0.015,
-    "wall_height": 3.2
+    "wall_height": 3.0
   }
 }
 ```
 
-##### State 5: Error / Task Not Found
+##### State: Error / Not Found
 ```json
 {
   "status": "error",
@@ -124,18 +104,11 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 
 ---
 
-### Endpoint: 3D Model Download / Asset Stream
+### Endpoint: Model Asset Stream
 
 - **Route**: `GET /api/download/<filename>`
 - **Response Content-Type**: `model/gltf-binary` (or binary stream via `send_from_directory`)
-- **Purpose**: Retrieves the compiled `.glb` binary asset for Three.js rendering or local saving.
-
-#### Responses:
-- `200 OK`: Binary stream of the GLB asset.
-- `404 Not Found`:
-  ```json
-  { "error": "File not found" }
-  ```
+- **Purpose**: Serves the compiled `.glb` binary asset for Three.js rendering or local saving.
 
 ---
 
@@ -144,15 +117,19 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 - **Route**: `GET /api/health`
 - **Method**: `GET`
 - **Success Response (`200 OK`)**:
-  ```json
-  { "status": "healthy" }
-  ```
+```json
+{
+  "status": "healthy",
+  "blender_path": "C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe",
+  "service": "PlanVista3D Model Generation"
+}
+```
 
 ---
 
-## 3. PlanVistaRoomify Puter Worker API Contracts
+## 3. Puter Serverless Worker API Contracts
 
-- **Base URL**: Configured by `VITE_PUTER_WORKER_URL` (e.g., `https://planvista-3d.puter.work`)
+- **Base URL**: Configured by `VITE_PUTER_WORKER_URL` (`https://planvista-3d.puter.work`)
 - **Invoker**: `puter.workers.exec(url, options)`
 - **Authentication**: Evaluates `user?.puter` session injected by Puter runtime.
 
@@ -179,153 +156,42 @@ This document specifies the exact communication contracts, HTTP endpoints, paylo
 }
 ```
 
-#### Success Response (`200 OK`):
-```json
-{
-  "saved": true,
-  "id": "1741512345678",
-  "project": {
-    "id": "1741512345678",
-    "name": "Residence 1741512345678",
-    "sourceImage": "https://roomify-xyz.puter.site/projects/1741512345678/source.png",
-    "renderedImage": "https://roomify-xyz.puter.site/projects/1741512345678/rendered.png",
-    "timestamp": 1741512345678,
-    "ownerId": "user-uuid-1234",
-    "isPublic": false,
-    "updatedAt": "2026-10-12T07:30:00.000Z"
-  }
-}
-```
-
-#### Error Responses:
-- `401 Unauthorized`:
-  ```json
-  { "error": "Authentication failed" }
-  ```
-- `400 Bad Request`:
-  ```json
-  { "error": "Project ID and source image are required" }
-  ```
-
 ---
 
 ### Endpoint: List Projects
 
 - **Route**: `GET /api/projects/list`
 - **Authentication**: Required
-- **Purpose**: Lists projects stored under key prefix `planVista3D_project_` in Puter KV.
-
-#### Success Response (`200 OK`):
-```json
-{
-  "projects": [
-    {
-      "id": "1741512345678",
-      "name": "Residence 1741512345678",
-      "sourceImage": "https://roomify-xyz.puter.site/projects/1741512345678/source.png",
-      "renderedImage": "https://roomify-xyz.puter.site/projects/1741512345678/rendered.png",
-      "timestamp": 1741512345678,
-      "ownerId": "user-uuid-1234",
-      "updatedAt": "2026-10-12T07:30:00.000Z",
-      "isPublic": true
-    }
-  ]
-}
-```
+- **Returns**: Array of `DesignItem` objects stored under prefix `planVista3D_project_` in Puter KV.
 
 ---
 
 ### Endpoint: Get Project by ID
 
 - **Route**: `GET /api/projects/get?id=<id>`
-- **Query Parameter**: `id` (String, required)
 - **Authentication**: Required
-
-#### Success Response (`200 OK`):
-```json
-{
-  "project": {
-    "id": "1741512345678",
-    "name": "Residence 1741512345678",
-    "sourceImage": "https://roomify-xyz.puter.site/projects/1741512345678/source.png",
-    "renderedImage": "https://roomify-xyz.puter.site/projects/1741512345678/rendered.png",
-    "timestamp": 1741512345678,
-    "ownerId": "user-uuid-1234",
-    "updatedAt": "2026-10-12T07:30:00.000Z",
-    "isPublic": false
-  }
-}
-```
-
-#### Error Responses:
-- `400 Bad Request`: `{ "error": "Project ID is required" }`
-- `404 Not Found`: `{ "error": "Project not found" }`
+- **Returns**: Single `DesignItem` matching project ID.
 
 ---
 
-## 4. Internal Intermediate Data Schemas
+## 4. Local Persistence Contract: 3D CAD Models
 
-### DXF Intermediate Configuration Schema (`<name>_dxf_config.json`)
-```json
-{
-  "dxf_path": "D:\\blueprint-to-3d\\backend\\uploads\\sample.dxf",
-  "target_size": 30.0,
-  "wall_height": 3.2,
-  "wall_thickness": 0.25,
-  "floors": 3,
-  "floor_height": 3.5,
-  "slab_thickness": 0.3
-}
-```
+Stored in browser `localStorage` under key `planvista3d_local_model_projects`:
 
-### Image Intermediate Analysis Schema (`<name>_analysis.json`)
 ```json
-{
-  "image_width": 1024,
-  "image_height": 768,
-  "scale_factor": 0.015,
-  "wall_height": 3.2,
-  "walls": [
-    {
-      "id": "wall_0",
-      "vertices": [
-        [0.125, 0.850],
-        [0.450, 0.850],
-        [0.450, 0.830],
-        [0.125, 0.830]
-      ],
-      "thickness": 0.01
-    }
-  ],
-  "doors": [
-    {
-      "id": "door_0",
-      "center": [0.250, 0.840],
-      "width": 0.050,
-      "height": 0.020,
-      "area_px": 800
-    }
-  ],
-  "windows": [
-    {
-      "id": "window_0",
-      "center": [0.380, 0.840],
-      "width": 0.080,
-      "height": 0.015,
-      "area_px": 600
-    }
-  ],
-  "rooms": [
-    {
-      "id": "room_0",
-      "bounds": {
-        "x": 0.100,
-        "y": 0.150,
-        "width": 0.600,
-        "height": 0.700
-      },
-      "center": [0.400, 0.500]
-    }
-  ]
-}
+[
+  {
+    "id": "934e0155-5959-46a5-a0ed-51d89a132d86",
+    "taskId": "934e0155-5959-46a5-a0ed-51d89a132d86",
+    "name": "Banglow Floor Plan",
+    "fileName": "banglow_floor_plan.dxf",
+    "type": "dxf",
+    "floors": 3,
+    "wallHeight": 3.2,
+    "wallThickness": 0.25,
+    "timestamp": 1741512345678,
+    "status": "completed"
+  }
+]
 ```
+This enables newly generated geometric models to appear in the unified project gallery alongside Puter AI renders.
