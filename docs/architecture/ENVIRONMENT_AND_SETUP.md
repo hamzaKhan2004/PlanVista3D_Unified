@@ -36,9 +36,48 @@ The development environment requires runtimes for Node.js (frontend web applicat
   | `API_KEY` | Commented Out | Used by the experimental prototype `blueprint_to_3d.py` for OpenRouter API requests. |
   | `MODEL_NAME` | Commented Out | Vision LLM identifier (e.g., `allenai/molmo-2-8b:free`). |
 
+### Unified PlanVista3D Environment Variables
+- **Root Template**: `.env.example`
+- **Frontend Configuration**: `frontend/.env` (optional, defaults to empty or proxy)
+  | Variable | Default Value | Description |
+  |---|---|---|
+  | `VITE_PUTER_WORKER_URL` | `https://planvista-3d.puter.work` | Remote Puter Worker handling project persistence. |
+  | `VITE_FLASK_API_URL` | `""` | Base URL for Flask (empty string defaults to Vite dev proxy `/api`). |
+- **Backend Configuration**: `backend/model-generation/.env` (optional)
+  | Variable | Default Value | Description |
+  |---|---|---|
+  | `PORT` | `5000` | Flask server listening port. |
+  | `BLENDER_PATH` | Auto-detected | Path to Blender executable (auto-detects `C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`). |
+  | `PYTHON_SITE_PACKAGES` | Auto-detected | Path to Python site-packages containing `ezdxf` for Blender. |
+  | `OPENROUTER_API_KEY` | None (Optional) | API key for experimental Vision LLM script `blueprint_to_3d.py`. |
+
 ---
 
-## 3. How to Run Each Project Independently
+## 3. How to Run the Unified Application (Recommended)
+
+### A. Launch Backend Processing Service
+```powershell
+cd "d:\Mern Projects\PlanVist3D\backend\model-generation"
+# Activate the virtual environment
+..\..\PlanVista3D\backend\venv\Scripts\Activate.ps1
+# Run Flask service
+python app.py
+```
+*Listens on `http://localhost:5000` with endpoints `/api/health`, `/api/upload`, `/api/status/<id>`, `/api/download/<filename>`.*
+
+### B. Launch Unified Frontend SPA
+```powershell
+cd "d:\Mern Projects\PlanVist3D\frontend"
+# Install dependencies if not already done
+npm install
+# Run development server
+npm run dev
+```
+*Listens on `http://localhost:5173`. Proxies `/api/*` to Flask backend on `http://localhost:5000`.*
+
+---
+
+## 4. How to Run Each Legacy Project Independently (Reference Only)
 
 ### A. Running Project A (PlanVistaRoomify)
 

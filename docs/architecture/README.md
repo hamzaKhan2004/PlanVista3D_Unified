@@ -1,16 +1,16 @@
-# Unified PlanVista3D — Technical Audit & Architecture Documentation Package
+# Unified PlanVista3D — Technical Architecture & Integration Reference
 
-> [!WARNING]
-> **READ-ONLY AUDIT NOTICE**: This documentation reflects the current state of the workspace as of October 2026. The proposed unified architecture and migration plans described herein are **proposals only** and have **NOT** been implemented. No source files, dependencies, configurations, or Git histories were modified during this audit.
+> [!NOTE]
+> **UNIFIED IMPLEMENTATION COMPLETE**: As of October 2026, the unified PlanVista3D application has been successfully established and verified in `frontend/`, `backend/model-generation/`, and `workers/puter/`. The original source directories (`PlanVistaRoomify/` and `PlanVista3D/`) are preserved intact as regression references.
 
 ---
 
 ## Executive Summary
 
-This documentation repository serves as the definitive technical reference for unifying two complementary architectural visualization codebases currently housed in the same workspace:
+This documentation repository serves as the definitive technical reference for the unified PlanVista3D architectural visualization platform. The application unifies two complementary generation pipelines into a single coherent user experience:
 
-1. **Project A (`PlanVistaRoomify`)**: A React Router v7 (SSR) full-stack web application that takes 2D floor plans (PNG/JPG/WEBP) and converts them into photorealistic, top-down 3D architectural visual render images via Puter's generative AI infrastructure (`puter.ai.txt2img`). It includes user authentication, project persistence in Puter KV/Cloud Storage, project listing, and a before-and-after slider comparison.
-2. **Project B (`PlanVista3D`)**: A client-server system comprising a Vite React SPA with Three.js / React Three Fiber (`@react-three/fiber`, `@react-three/drei`) and a Python Flask backend. It converts blueprints (DXF CAD files and 2D floor plan images) into authentic geometric 3D mesh models (`.glb`) via OpenCV contour analysis and headless Blender 5.0 automation (`generate_model.py` and `generate_model_image.py`).
+1. **Pipeline A (AI Image Visualization)**: Takes 2D floor plans (PNG/JPG/WEBP) and generates photorealistic, top-down 3D visual renders via Puter's generative AI infrastructure (`puter.ai.txt2img`). Includes Puter authentication, Puter Hosting asset storage, Puter KV project persistence, and before-and-after slider comparisons.
+2. **Pipeline B (Geometric 3D CAD/Mesh Generation)**: Converts architectural blueprints (DXF CAD vector files and raster floor plan images) into interactive, authentic geometric 3D mesh models (`.glb`) via a Python Flask API, OpenCV contour analysis, headless Blender 5.0 procedural extrusion, and an interactive Three.js / React Three Fiber CAD viewer.
 
 ---
 
@@ -48,24 +48,41 @@ When working with future AI assistants or onboarding developers:
 
 ---
 
-## Workspace Layout at Audit Time
+## Active Workspace Layout (Unified Architecture)
 
 ```
 d:/Mern Projects/PlanVist3D/
+├── frontend/                          <-- Unified React 19 + Vite + Tailwind v4 SPA (Port 5173)
+│   ├── src/
+│   │   ├── app/                       <-- App.jsx, Home.jsx, routes.jsx
+│   │   ├── components/layout/         <-- Navbar.jsx, AppLayout.jsx
+│   │   ├── components/ui/             <-- Button.jsx (Roomify editorial primitives)
+│   │   ├── components/projects/       <-- ProjectCard.jsx (dual-mode badge card)
+│   │   ├── features/image-generation/ <-- UploadFloorPlan.jsx, ImageVisualizer.jsx
+│   │   ├── features/model-generation/ <-- UploadBlueprint.jsx, ModelViewer.jsx, Advanced3DEditor.jsx
+│   │   ├── features/project-gallery/  <-- ProjectGallery.jsx (unified catalog)
+│   │   ├── lib/                       <-- puter.action.js, modelApi.js, ai.action.js, utils.js
+│   │   ├── styles/                    <-- index.css (Roomify palette, @theme tokens)
+│   │   └── main.jsx
+│   ├── vite.config.js                 <-- Vite config with /api proxy to Flask port 5000
+│   └── package.json
+├── backend/
+│   └── model-generation/             <-- Independent Python Flask + Blender Service (Port 5000)
+│       ├── app.py                     <-- Flask REST API, OpenCV contour analysis, multi-CORS
+│       ├── generate_model.py          <-- Blender 5.0 DXF line & polyline procedural extrusion
+│       ├── generate_model_image.py    <-- Blender 5.0 image contour extrusion & texturing
+│       ├── blueprint_to_3d.py         <-- Secured prototype (reads OPENROUTER_API_KEY from env)
+│       ├── requirements.txt           <-- Flask, flask-cors, opencv-python, numpy, ezdxf
+│       ├── uploads/ & outputs/        <-- Transient file directories
+│       └── textures/                  <-- wood_floor2.jpg texture asset
+├── workers/
+│   └── puter/
+│       └── puter.worker.js            <-- Puter Cloud Serverless Worker (/api/projects router)
 ├── docs/
-│   └── architecture/              <-- This documentation package
-├── PlanVista3D/                   <-- Geometric 3D Pipeline & React Three Fiber Viewer
-│   ├── Blueprint Img/             <-- Test blueprints (DXF CAD and raster images)
-│   ├── backend/                   <-- Flask API, OpenCV, Blender generation scripts
-│   ├── frontend/                  <-- React 19 + Vite + Three.js + Tailwind v4
-│   └── imp.txt                    <-- Reference Blender DXF generator addon script
-└── PlanVistaRoomify/              <-- AI Generative 2D-to-3D Visualizer
-    ├── app/                       <-- React Router v7 routes (SSR) & styles
-    ├── components/                <-- UI components (Navbar, Upload, Button)
-    ├── lib/                       <-- Puter SDK integrations, actions, worker script
-    ├── public/                    <-- Static assets
-    ├── Dockerfile                 <-- Multi-stage production container build
-    ├── react-router.config.ts     <-- React Router v7 SSR configuration
-    ├── tsconfig.json              <-- TypeScript 5 configuration
-    └── vite.config.ts             <-- Vite 7 + Tailwind 4 + React Router plugin
+│   └── architecture/                  <-- Technical architecture documentation
+├── .env.example                       <-- Safe configuration template
+├── README.md                          <-- Master unified repository documentation
+│
+├── PlanVista3D/                       <-- Preserved reference implementation
+└── PlanVistaRoomify/                  <-- Preserved reference implementation
 ```
