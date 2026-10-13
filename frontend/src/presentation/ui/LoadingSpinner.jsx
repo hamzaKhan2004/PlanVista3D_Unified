@@ -13,8 +13,8 @@ const LoadingSpinner = ({ label = "Loading...", description = "", size = "md" })
       <div className="relative">
         <Loader2 className={`${sizeClasses[size] || sizeClasses.md} animate-spin text-orange-500`} />
       </div>
-      {label && <p className="text-sm font-medium text-zinc-800">{label}</p>}
-      {description && <p className="text-xs text-zinc-500 max-w-sm">{description}</p>}
+      {label && <p className="text-sm font-medium text-zinc-800 dark:text-[#f5f0e8]">{label}</p>}
+      {description && <p className="text-xs text-zinc-500 dark:text-[#b4ada3] max-w-sm">{description}</p>}
     </div>
   );
 };

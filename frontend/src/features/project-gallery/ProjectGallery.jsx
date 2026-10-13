@@ -98,29 +98,29 @@ const ProjectGallery = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between pb-8 mb-8 border-b border-[#eae4dc] gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between pb-8 mb-8 border-b border-[#eae4dc] dark:border-[#39342f] gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <span className="badge-warm">
-              <FolderKanban className="w-3.5 h-3.5 text-orange-500" /> Unified Studio Projects
+              <FolderKanban className="w-3.5 h-3.5 text-orange-500 dark:text-[#ff7417]" /> Unified Studio Projects
             </span>
           </div>
-          <h1 className="font-serif text-4xl sm:text-5xl font-bold text-zinc-900 tracking-tight">
+          <h1 className="font-serif text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-[#f5f0e8] tracking-tight">
             Project Gallery
           </h1>
-          <p className="text-sm text-zinc-500 mt-2 max-w-xl">
+          <p className="text-sm text-zinc-500 dark:text-[#b4ada3] mt-2 max-w-xl">
             Browse and manage all your synthesized architectural visualizations and interactive 3D CAD mesh models.
           </p>
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center p-1 bg-white border border-[#eae4dc] rounded-xl shadow-xs">
+        <div className="flex items-center p-1 bg-white dark:bg-[#1d1b19] border border-[#eae4dc] dark:border-[#39342f] rounded-xl shadow-xs">
           <button
             onClick={() => setFilter("all")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filter === "all"
-                ? "bg-zinc-900 text-white shadow-xs"
-                : "text-zinc-600 hover:text-zinc-900"
+                ? "bg-zinc-900 dark:bg-[#2b2a27] text-white dark:text-[#f5f0e8] shadow-xs"
+                : "text-zinc-600 dark:text-[#b4ada3] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
             }`}
           >
             All ({projects.length})
@@ -129,8 +129,8 @@ const ProjectGallery = () => {
             onClick={() => setFilter("image")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filter === "image"
-                ? "bg-orange-500 text-white shadow-xs"
-                : "text-zinc-600 hover:text-zinc-900"
+                ? "bg-orange-500 dark:bg-[#ff7417] text-white shadow-xs"
+                : "text-zinc-600 dark:text-[#b4ada3] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
             }`}
           >
             AI Renders
@@ -139,8 +139,8 @@ const ProjectGallery = () => {
             onClick={() => setFilter("model")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filter === "model"
-                ? "bg-purple-600 text-white shadow-xs"
-                : "text-zinc-600 hover:text-zinc-900"
+                ? "bg-purple-600 dark:bg-[#9333ea] text-white shadow-xs"
+                : "text-zinc-600 dark:text-[#b4ada3] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
             }`}
           >
             3D CAD Models
@@ -151,8 +151,8 @@ const ProjectGallery = () => {
       {/* Projects Grid */}
       {loading ? (
         <div className="min-h-[40vh] flex flex-col items-center justify-center space-y-3">
-          <div className="w-8 h-8 border-3 border-orange-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs text-zinc-500 font-medium">Loading project catalog...</p>
+          <div className="w-8 h-8 border-3 border-orange-500 dark:border-[#ff7417] border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs text-zinc-500 dark:text-[#b4ada3] font-medium">Loading project catalog...</p>
         </div>
       ) : filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -165,14 +165,14 @@ const ProjectGallery = () => {
           ))}
         </div>
       ) : (
-        <div className="bg-white border border-dashed border-zinc-300 rounded-3xl p-12 text-center max-w-lg mx-auto space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto">
+        <div className="bg-white dark:bg-[#1d1b19] border border-dashed border-zinc-300 dark:border-[#39342f] rounded-3xl p-12 text-center max-w-lg mx-auto space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mx-auto">
             <Plus className="w-6 h-6" />
           </div>
-          <h3 className="font-serif text-2xl font-bold text-zinc-900">
+          <h3 className="font-serif text-2xl font-bold text-zinc-900 dark:text-[#f5f0e8]">
             No projects in this category
           </h3>
-          <p className="text-xs text-zinc-500 leading-relaxed">
+          <p className="text-xs text-zinc-500 dark:text-[#b4ada3] leading-relaxed">
             Upload your first floor-plan image or CAD blueprint to generate photorealistic renderings or 3D models.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -184,7 +184,7 @@ const ProjectGallery = () => {
             </Link>
             <Link to="/generate-model">
               <Button variant="secondary" size="sm" className="w-full sm:w-auto">
-                <Box className="w-3.5 h-3.5 mr-1.5 text-purple-600" />
+                <Box className="w-3.5 h-3.5 mr-1.5 text-purple-600 dark:text-[#ddb8ff]" />
                 Generate 3D Model
               </Button>
             </Link>
@@ -200,16 +200,16 @@ const ProjectGallery = () => {
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
                 Are you sure you want to delete this project?
               </p>
-              <p className="text-xs text-zinc-600 mt-1">
+              <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1">
                 You are about to permanently delete{" "}
-                <span className="font-semibold text-zinc-900">
+                <span className="font-semibold text-zinc-900 dark:text-[#f5f0e8]">
                   "{projectToDelete?.name || `Project ${projectToDelete?.id}`}"
                 </span>
                 . This will permanently remove all associated{" "}

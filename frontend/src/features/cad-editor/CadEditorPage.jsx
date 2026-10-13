@@ -537,7 +537,7 @@ const CadEditorPage = () => {
   const selectedData = getSelectedObjectData();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fdfbf7] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fdfbf7] dark:bg-[#141311] overflow-hidden">
       {/* Top CAD Studio Bar */}
       <CadToolbar
         transformMode={transformMode}
@@ -573,8 +573,39 @@ const CadEditorPage = () => {
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Viewport Guard: 3D CAD Editing Unavailable on Mobile */}
+        <div className="sm:hidden absolute inset-0 z-50 bg-[#fdfbf7]/98 dark:bg-[#141311]/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/15 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mb-4 border border-orange-200 dark:border-[#ff7417]/30">
+            <Layers className="w-7 h-7" />
+          </div>
+          <h3 className="font-serif text-lg font-bold text-zinc-900 dark:text-[#f5f0e8] mb-2">
+            3D CAD Editor Requires Desktop or Tablet
+          </h3>
+          <p className="text-xs text-zinc-600 dark:text-[#b4ada3] max-w-xs leading-relaxed mb-6">
+            Precision 3D modeling, coordinate manipulation, and CAD scene outliner tools require a viewport width of 640px or higher. Please use a tablet or desktop browser to edit this model.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/projects")}
+              className="text-xs"
+            >
+              Back to Projects
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="text-xs"
+            >
+              Overview
+            </Button>
+          </div>
+        </div>
+
         {/* Left: Scene Hierarchy Tree Panel */}
-        <div className="w-64 border-r border-[#eae4dc] h-full hidden md:block shrink-0">
+        <div className="w-64 border-r border-[#eae4dc] dark:border-[#39342f] h-full hidden md:block shrink-0 dark:bg-[#1d1b19]">
           <SceneHierarchyPanel
             dynamicObjects={dynamicObjects}
             selectedObjectId={selectedObject?.id}
@@ -588,7 +619,7 @@ const CadEditorPage = () => {
         {/* Center: 3D Viewport */}
         <div className="flex-1 h-full relative">
           {loading ? (
-            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6]">
+            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] dark:bg-[#141311]">
               <LoadingSpinner
                 label="Preparing CAD Workspace..."
                 description="Loading geometry meshes and material shaders"
@@ -603,7 +634,7 @@ const CadEditorPage = () => {
               />
             </div>
           ) : !modelUrl ? (
-            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] p-6">
+            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] dark:bg-[#141311] p-6">
               <EmptyState
                 icon={Layers}
                 title="No 3D Model Loaded"
@@ -618,7 +649,7 @@ const CadEditorPage = () => {
               <button
                 type="button"
                 onClick={() => setShowSourceModal(true)}
-                className="absolute top-4 left-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 border border-[#eae4dc] dark:border-zinc-800 shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-zinc-800 transition-all text-xs font-semibold cursor-pointer"
+                className="absolute top-4 left-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] transition-all text-xs font-semibold cursor-pointer"
                 title="View original blueprint details and inspection"
               >
                 <FileText className="w-3.5 h-3.5 text-orange-500" />
@@ -642,36 +673,36 @@ const CadEditorPage = () => {
 
               {/* Floating Picture-in-Picture Blueprint Comparison Card */}
               {showCompareOverlay && (modelProject?.sourceThumbnail || modelProject?.sourceDownloadUrl) && (
-                <div className="absolute bottom-6 right-6 z-30 w-72 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl border border-[#eae4dc] dark:border-zinc-800 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
-                  <div className="flex items-center justify-between px-3.5 py-2 border-b border-[#eae4dc] dark:border-zinc-800 bg-[#fdfbf7]/80 dark:bg-zinc-900/80">
+                <div className="absolute bottom-6 right-6 z-30 w-72 bg-white/95 dark:bg-[#1d1b19]/95 backdrop-blur-md rounded-2xl border border-[#eae4dc] dark:border-[#39342f] shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between px-3.5 py-2 border-b border-[#eae4dc] dark:border-[#39342f] bg-[#fdfbf7]/80 dark:bg-[#24211f]/90">
                     <div className="flex items-center gap-1.5">
                       <SplitSquareVertical className="w-3.5 h-3.5 text-orange-500" />
-                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      <span className="text-xs font-bold text-zinc-900 dark:text-[#f5f0e8]">
                         2D Blueprint Comparison
                       </span>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowCompareOverlay(false)}
-                      className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+                      className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-[#f5f0e8] transition-colors cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <div className="p-2 space-y-2">
-                    <div className="aspect-4/3 w-full bg-[#f4eee6] dark:bg-zinc-800 rounded-xl overflow-hidden border border-zinc-200/60 dark:border-zinc-700/60">
+                    <div className="aspect-4/3 w-full bg-[#f4eee6] dark:bg-[#141311] rounded-xl overflow-hidden border border-zinc-200/60 dark:border-[#39342f]">
                       <img
                         src={modelProject.sourceThumbnail || modelProject.sourceDownloadUrl}
                         alt="2D Blueprint Comparison"
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="px-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
+                    <div className="px-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#746e65]">
                       <span className="truncate max-w-[150px]">{modelProject.fileName || "Blueprint"}</span>
                       <button
                         type="button"
                         onClick={() => setShowSourceModal(true)}
-                        className="text-orange-600 dark:text-orange-400 font-semibold hover:underline cursor-pointer"
+                        className="text-orange-600 dark:text-[#ff7417] font-semibold hover:underline cursor-pointer"
                       >
                         Inspect
                       </button>
@@ -684,7 +715,7 @@ const CadEditorPage = () => {
         </div>
 
         {/* Right: Property Inspector Panel */}
-        <div className="w-80 border-l border-[#eae4dc] h-full hidden sm:block shrink-0 bg-[#fdfbf7]">
+        <div className="w-80 border-l border-[#eae4dc] dark:border-[#39342f] h-full hidden sm:block shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19]">
           <CadPropertiesPanel
             selectedObject={selectedObject}
             objectData={selectedData}
@@ -725,16 +756,16 @@ const CadEditorPage = () => {
       >
         <div className="space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
                 Are you sure you want to delete this CAD project?
               </p>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1">
+              <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1">
                 You are about to permanently delete{" "}
-                <span className="font-semibold text-zinc-900 dark:text-zinc-200">
+                <span className="font-semibold text-zinc-900 dark:text-[#f5f0e8]">
                   "{modelProject?.name || `Project ${activeTaskId}`}"
                 </span>
                 . All 3D geometry meshes, source files, and project configurations will be deleted from storage. This action cannot be undone.
@@ -743,12 +774,12 @@ const CadEditorPage = () => {
           </div>
 
           {deleteProjectError && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-300 text-xs">
               {deleteProjectError}
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc] dark:border-zinc-800">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc] dark:border-[#39342f]">
             <Button
               variant="outline"
               size="sm"

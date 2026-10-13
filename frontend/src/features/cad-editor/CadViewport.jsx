@@ -16,6 +16,7 @@ import {
 } from "@react-three/drei";
 import { Color, BoxGeometry, MeshStandardMaterial, Mesh, Vector3 } from "three";
 import { CAMERA_PRESETS } from "../../domain/cad/cadTypes";
+import { useTheme } from "../../presentation/layout/AppLayout";
 
 class ModelErrorBoundary extends React.Component {
   constructor(props) {
@@ -331,6 +332,8 @@ const CadViewport = forwardRef(
     ref
   ) => {
     const cameraRef = useRef();
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
 
     useImperativeHandle(ref, () => ({
       resetCamera: () => cameraRef.current?.resetCamera(),
@@ -341,7 +344,7 @@ const CadViewport = forwardRef(
     }));
 
     return (
-      <div className="relative w-full h-full bg-[#f4eee6]">
+      <div className="relative w-full h-full bg-[#f4eee6] dark:bg-[#141311]">
         <Canvas
           shadows
           camera={{ position: [15, 15, 15], fov: 45 }}
@@ -349,7 +352,7 @@ const CadViewport = forwardRef(
           className="w-full h-full"
         >
           {/* Ambient and Studio Lighting */}
-          <ambientLight intensity={0.7} />
+          <ambientLight intensity={isDark ? 0.8 : 0.7} />
           <directionalLight
             position={[20, 30, 20]}
             intensity={1.2}
@@ -365,8 +368,8 @@ const CadViewport = forwardRef(
               infiniteGrid
               cellSize={1}
               sectionSize={5}
-              cellColor="#d3c7b5"
-              sectionColor="#a39682"
+              cellColor={isDark ? "#2b2a27" : "#d3c7b5"}
+              sectionColor={isDark ? "#39342f" : "#a39682"}
               fadeDistance={60}
               fadeStrength={1.5}
             />
@@ -375,9 +378,9 @@ const CadViewport = forwardRef(
           <Suspense
             fallback={
               <Html center>
-                <div className="flex flex-col items-center gap-2 p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-zinc-200 shadow-xl">
+                <div className="flex flex-col items-center gap-2 p-4 bg-white/90 dark:bg-[#1d1b19]/90 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-[#39342f] shadow-xl">
                   <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs font-semibold text-zinc-800">
+                  <span className="text-xs font-semibold text-zinc-800 dark:text-[#f5f0e8]">
                     Mounting 3D Geometry...
                   </span>
                 </div>

@@ -89,9 +89,9 @@ const SourceBlueprintPanel = ({
   const wallsCount = analysis?.walls_detected || (Array.isArray(analysis?.walls) ? analysis.walls.length : null);
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-[#eae4dc] dark:border-zinc-800 rounded-2xl p-4 shadow-warm-sm space-y-3.5">
+    <div className="bg-white dark:bg-[#211f1d] border border-[#eae4dc] dark:border-[#39342f] rounded-2xl p-4 shadow-warm-sm space-y-3.5">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-[#eae4dc] dark:border-zinc-800 pb-2.5">
+      <div className="flex items-center justify-between border-b border-[#eae4dc] dark:border-[#39342f] pb-2.5">
         <div className="flex items-center gap-2">
           {isDxf ? (
             <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
@@ -102,15 +102,15 @@ const SourceBlueprintPanel = ({
               <ImageIcon className="w-4 h-4" />
             </div>
           ) : (
-            <div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-[#2b2a27] text-zinc-600 dark:text-[#b4ada3] flex items-center justify-center">
               <FileText className="w-4 h-4" />
             </div>
           )}
           <div>
-            <h4 className="font-serif font-bold text-sm text-zinc-900 dark:text-zinc-100 leading-none">
+            <h4 className="font-serif font-bold text-sm text-zinc-900 dark:text-[#f5f0e8] leading-none">
               Source Blueprint
             </h4>
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+            <span className="text-[10px] text-zinc-500 dark:text-[#746e65] font-medium">
               Original Model Input
             </span>
           </div>
@@ -123,7 +123,7 @@ const SourceBlueprintPanel = ({
               ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
               : isImage
               ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-              : "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700"
+              : "bg-zinc-100 text-zinc-700 dark:bg-[#2b2a27] dark:text-[#b4ada3] border border-zinc-200 dark:border-[#39342f]"
           }`}
         >
           {isDxf
@@ -140,7 +140,7 @@ const SourceBlueprintPanel = ({
           {/* Interactive In-App Thumbnail with Inspect Overlay */}
           <div
             onClick={() => setIsLightboxOpen(true)}
-            className="group relative aspect-16/9 w-full bg-[#f4eee6] dark:bg-zinc-800 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 cursor-pointer shadow-xs"
+            className="group relative aspect-16/9 w-full bg-[#f4eee6] dark:bg-[#1d1b19] rounded-xl overflow-hidden border border-zinc-200 dark:border-[#39342f] cursor-pointer shadow-xs"
             title="Click to inspect original blueprint in full resolution"
           >
             <img
@@ -161,9 +161,9 @@ const SourceBlueprintPanel = ({
             <button
               type="button"
               onClick={() => setIsLightboxOpen(true)}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-medium bg-zinc-100 hover:bg-zinc-200 dark:bg-[#2b2a27] dark:hover:bg-[#39342f] text-zinc-800 dark:text-[#f5f0e8] transition-colors cursor-pointer"
             >
-              <Maximize2 className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+              <Maximize2 className="w-3.5 h-3.5 text-zinc-600 dark:text-[#b4ada3]" />
               <span>Enlarge Preview</span>
             </button>
 
@@ -174,7 +174,7 @@ const SourceBlueprintPanel = ({
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                   isComparing
                     ? "bg-orange-500 text-white shadow-xs"
-                    : "bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800"
+                    : "bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 dark:bg-[#ff7417]/15 dark:text-[#ff7417] dark:border-[#ff7417]/30"
                 }`}
                 title="View 2D blueprint alongside 3D geometry for comparison"
               >
@@ -244,12 +244,12 @@ const SourceBlueprintPanel = ({
         </div>
       ) : (
         /* --- Case 3: Graceful Legacy/Fallback Document State --- */
-        <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 text-center space-y-1">
-          <FileText className="w-6 h-6 text-zinc-400 mx-auto" />
-          <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+        <div className="p-3 bg-zinc-50 dark:bg-[#1d1b19] rounded-xl border border-zinc-200 dark:border-[#39342f] text-center space-y-1">
+          <FileText className="w-6 h-6 text-zinc-400 dark:text-[#746e65] mx-auto" />
+          <p className="text-xs font-semibold text-zinc-700 dark:text-[#f5f0e8]">
             Source Blueprint Archived
           </p>
-          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+          <p className="text-[10px] text-zinc-500 dark:text-[#746e65]">
             3D geometric model reconstructed successfully
           </p>
         </div>
@@ -258,21 +258,21 @@ const SourceBlueprintPanel = ({
       {/* Blueprint Metadata Specifications */}
       <div className="space-y-1.5 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-500 dark:text-zinc-400">File Name</span>
+          <span className="text-zinc-500 dark:text-[#746e65]">File Name</span>
           <span
-            className="font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]"
+            className="font-semibold text-zinc-800 dark:text-[#e6e2de] truncate max-w-[160px]"
             title={rawFileName || "Unavailable"}
           >
-            {rawFileName || <span className="text-zinc-400 italic">Saved Project</span>}
+            {rawFileName || <span className="text-zinc-400 dark:text-[#746e65] italic">Saved Project</span>}
           </span>
         </div>
 
         {uploadDate && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-zinc-400" /> Uploaded
+            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Uploaded
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {uploadDate}
             </span>
           </div>
@@ -280,10 +280,10 @@ const SourceBlueprintPanel = ({
 
         {floors && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-              <Layers className="w-3 h-3 text-zinc-400" /> Floors
+            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
+              <Layers className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Floors
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {floors} Levels
             </span>
           </div>
@@ -291,10 +291,10 @@ const SourceBlueprintPanel = ({
 
         {wallHeight && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-              <Ruler className="w-3 h-3 text-zinc-400" /> Wall Height
+            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
+              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Wall Height
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallHeight}m
             </span>
           </div>
@@ -302,10 +302,10 @@ const SourceBlueprintPanel = ({
 
         {wallThickness && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-              <Ruler className="w-3 h-3 text-zinc-400" /> Wall Thickness
+            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
+              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Wall Thickness
             </span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallThickness}m
             </span>
           </div>
@@ -313,8 +313,8 @@ const SourceBlueprintPanel = ({
 
         {imageWidth && imageHeight && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">Resolution</span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium font-mono text-[11px]">
+            <span className="text-zinc-500 dark:text-[#746e65]">Resolution</span>
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium font-mono text-[11px]">
               {imageWidth} × {imageHeight} px
             </span>
           </div>
@@ -322,8 +322,8 @@ const SourceBlueprintPanel = ({
 
         {wallsCount && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-zinc-400">Contours</span>
-            <span className="text-zinc-700 dark:text-zinc-300 font-medium">
+            <span className="text-zinc-500 dark:text-[#746e65]">Contours</span>
+            <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallsCount} wall sections
             </span>
           </div>
@@ -332,14 +332,14 @@ const SourceBlueprintPanel = ({
 
       {/* Subtle Secondary Download Action */}
       {hasStoredSource && (
-        <div className="pt-2 border-t border-[#eae4dc] dark:border-zinc-800 flex items-center justify-between text-[11px]">
-          <span className="text-zinc-500 dark:text-zinc-400">Source Archive:</span>
+        <div className="pt-2 border-t border-[#eae4dc] dark:border-[#39342f] flex items-center justify-between text-[11px]">
+          <span className="text-zinc-500 dark:text-[#746e65]">Source Archive:</span>
           <a
             href={downloadUrl}
             target="_blank"
             rel="noopener noreferrer"
             download={rawFileName || `blueprint.${fileType}`}
-            className="inline-flex items-center gap-1 text-orange-600 dark:text-orange-400 hover:text-orange-700 font-medium transition-colors"
+            className="inline-flex items-center gap-1 text-orange-600 dark:text-[#ff7417] hover:text-orange-700 dark:hover:text-[#ff9248] font-medium transition-colors"
           >
             <Download className="w-3 h-3" />
             <span>Download Original</span>
@@ -360,30 +360,30 @@ const SourceBlueprintPanel = ({
         >
           <div className="space-y-4">
             {/* Lightbox Controls */}
-            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 border-b border-[#eae4dc] dark:border-zinc-800 pb-2">
-              <span className="truncate max-w-xs">{rawFileName}</span>
+            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#746e65] border-b border-[#eae4dc] dark:border-[#39342f] pb-2">
+              <span className="truncate max-w-xs dark:text-[#e6e2de]">{rawFileName}</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.25))}
-                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer"
+                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-[#2b2a27] dark:hover:bg-[#39342f] text-zinc-800 dark:text-[#f5f0e8] text-xs font-semibold cursor-pointer"
                 >
                   -
                 </button>
-                <span className="font-mono text-xs w-12 text-center">
+                <span className="font-mono text-xs w-12 text-center dark:text-[#e6e2de]">
                   {Math.round(zoomLevel * 100)}%
                 </span>
                 <button
                   type="button"
                   onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer"
+                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-[#2b2a27] dark:hover:bg-[#39342f] text-zinc-800 dark:text-[#f5f0e8] text-xs font-semibold cursor-pointer"
                 >
                   +
                 </button>
                 <button
                   type="button"
                   onClick={() => setZoomLevel(1)}
-                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold cursor-pointer ml-1"
+                  className="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-[#2b2a27] dark:hover:bg-[#39342f] text-zinc-800 dark:text-[#f5f0e8] text-xs font-semibold cursor-pointer ml-1"
                 >
                   Reset
                 </button>
@@ -400,13 +400,13 @@ const SourceBlueprintPanel = ({
               />
             </div>
 
-            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 pt-2 border-t border-[#eae4dc] dark:border-zinc-800">
+            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#746e65] pt-2 border-t border-[#eae4dc] dark:border-[#39342f]">
               <span>Use zoom buttons to inspect blueprint lines and architectural notations</span>
               {downloadUrl && (
                 <a
                   href={downloadUrl}
                   download={rawFileName || "blueprint.png"}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-orange-600 dark:text-[#ff7417] hover:text-orange-700 dark:hover:text-[#ff9248]"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Download file</span>

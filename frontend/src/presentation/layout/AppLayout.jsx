@@ -105,7 +105,7 @@ const AppLayout = () => {
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       <AuthContext.Provider value={{ ...authState, refreshAuth, signIn, signOut }}>
-        <div className="min-h-screen bg-[#fdfbf7] dark:bg-[#121110] text-[#1a1a1a] dark:text-[#f4efe6] flex flex-col font-sans transition-colors duration-200">
+        <div className="min-h-screen bg-[#fdfbf7] dark:bg-[#141311] text-[#1a1a1a] dark:text-[#e6e2de] flex flex-col font-sans transition-colors duration-200">
           <Navbar
             authState={authState}
             onSignIn={signIn}

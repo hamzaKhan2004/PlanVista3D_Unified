@@ -2,11 +2,11 @@ import React from "react";
 
 const Badge = ({ variant = "default", className = "", children }) => {
   const variantStyles = {
-    default: "bg-zinc-100 text-zinc-700 border-zinc-200",
-    orange: "bg-orange-50 text-orange-700 border-orange-200",
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    blue: "bg-blue-50 text-blue-700 border-blue-200",
-    purple: "bg-purple-50 text-purple-700 border-purple-200",
+    default: "bg-zinc-100 dark:bg-[#211f1d] text-zinc-700 dark:text-[#e6e2de] border-zinc-200 dark:border-[#39342f]",
+    orange: "bg-orange-50 dark:bg-[#ff7417]/15 text-orange-700 dark:text-[#ffb691] border-orange-200 dark:border-[#ff7417]/30",
+    emerald: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40",
+    blue: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/40",
+    purple: "bg-purple-50 dark:bg-[#9333ea]/15 text-purple-700 dark:text-[#ddb8ff] border-purple-200 dark:border-[#9333ea]/30",
   };
 
   return (

@@ -87,8 +87,8 @@ const UploadFloorPlan = ({ onComplete }) => {
         <div
           className={`relative border-2 border-dashed rounded-2xl p-8 sm:p-12 text-center transition-all cursor-pointer ${
             isDragging
-              ? "border-orange-500 bg-orange-50/50 scale-[1.01]"
-              : "border-zinc-300 hover:border-orange-400 hover:bg-orange-50/20 bg-white"
+              ? "border-orange-500 dark:border-[#ff7417] bg-orange-50/50 dark:bg-[#ff7417]/10 scale-[1.01]"
+              : "border-zinc-300 dark:border-[#39342f] hover:border-orange-400 dark:hover:border-[#ff7417] hover:bg-orange-50/20 dark:hover:bg-[#ff7417]/5 bg-white dark:bg-[#141311]"
           }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -109,47 +109,47 @@ const UploadFloorPlan = ({ onComplete }) => {
             onChange={handleFileChange}
           />
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center shadow-sm">
               <UploadCloud className="w-7 h-7" />
             </div>
             <div>
-              <p className="text-base font-semibold text-zinc-900">
+              <p className="text-base font-semibold text-zinc-900 dark:text-[#f5f0e8]">
                 {isSignedIn
                   ? "Click to upload or drag & drop floor plan"
                   : "Sign in with Puter to upload floor plan"}
               </p>
-              <p className="text-xs text-zinc-500 mt-1">
+              <p className="text-xs text-zinc-500 dark:text-[#b4ada3] mt-1">
                 Supports JPG, PNG, WEBP architectural floor plans up to 50MB
               </p>
             </div>
             {!isSignedIn && (
-              <span className="inline-block mt-2 text-xs font-semibold text-orange-600 bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
+              <span className="inline-block mt-2 text-xs font-semibold text-orange-600 dark:text-[#ffb691] bg-orange-50 dark:bg-[#2b2a27] px-3 py-1 rounded-full border border-orange-200 dark:border-[#39342f]">
                 Click here to sign in with Puter
               </span>
             )}
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm text-center">
+        <div className="bg-white dark:bg-[#1d1b19] border border-zinc-200 dark:border-[#39342f] rounded-2xl p-8 shadow-sm text-center">
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+            <div className="w-14 h-14 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center">
               {progress === 100 ? (
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
+                <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-[#ffb691]" />
               ) : (
                 <ImageIcon className="w-8 h-8" />
               )}
             </div>
-            <h3 className="text-base font-semibold text-zinc-800 truncate max-w-sm">
+            <h3 className="text-base font-semibold text-zinc-800 dark:text-[#f5f0e8] truncate max-w-sm">
               {file.name}
             </h3>
             <div className="w-full max-w-xs space-y-2">
-              <div className="w-full h-2 bg-zinc-100 rounded-full overflow-hidden">
+              <div className="w-full h-2 bg-zinc-100 dark:bg-[#2b2a27] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-orange-500 transition-all duration-200 rounded-full"
+                  className="h-full bg-orange-500 dark:bg-[#ff7417] transition-all duration-200 rounded-full"
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-zinc-500 font-medium">
+              <p className="text-xs text-zinc-500 dark:text-[#b4ada3] font-medium">
                 {progress < 100 ? "Analyzing floor plan lines..." : "Redirecting to visualizer..."}
               </p>
             </div>
