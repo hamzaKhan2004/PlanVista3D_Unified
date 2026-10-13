@@ -39,20 +39,13 @@ def clear_scene():
 # CORE DXF → BUILDING
 # -------------------------------------------------
 def generate_building_from_dxf(config):
-    dxf_path = config["dxf_path"]
+    dxf_path = config.get("dxf_path")
     target_size = float(config.get("target_size", 30.0))
     wall_height = float(config.get("wall_height", 3.2))
     wall_thickness = float(config.get("wall_thickness", 0.25))
-    floors = int(config.get("floors", 3))
+    floors = int(config.get("floors", 1 if "line_segments" in config else 3))
     floor_height = float(config.get("floor_height", 3.5))
     slab_thickness = float(config.get("slab_thickness", 0.3))
-
-    if not os.path.exists(dxf_path):
-        raise RuntimeError(f"DXF file not found: {dxf_path}")
-
-    print(f"📄 Loading DXF: {dxf_path}")
-    doc = ezdxf.readfile(dxf_path)
-    msp = doc.modelspace()
 
     bm = bmesh.new()
 
@@ -60,53 +53,73 @@ def generate_building_from_dxf(config):
     maxx = maxy = -1e9
     line_count = 0
 
-    # Build wall faces from LINE and LWPOLYLINE entities
-    for e in msp:
-        line_segments = []
-        dxftype = e.dxftype()
+    all_segments = []
 
-        if dxftype == "LINE":
-            p1 = Vector((e.dxf.start.x, e.dxf.start.y, 0))
-            p2 = Vector((e.dxf.end.x, e.dxf.end.y, 0))
-            line_segments.append((p1, p2))
-        elif dxftype == "LWPOLYLINE":
-            try:
-                pts = [Vector((p[0], p[1], 0)) for p in e.get_points()]
-                if getattr(e, "is_closed", False) and len(pts) > 2:
-                    pts.append(pts[0])
-                for idx in range(len(pts) - 1):
-                    line_segments.append((pts[idx], pts[idx + 1]))
-            except Exception:
-                pass
+    # Branch 1: Direct 2D Vector Geometry from Vector-Assisted generation
+    if "line_segments" in config and len(config["line_segments"]) > 0:
+        print(f"📐 Loading direct vector geometry: {len(config['line_segments'])} segments")
+        for seg in config["line_segments"]:
+            p1 = Vector((float(seg[0][0]), float(seg[0][1]), 0))
+            p2 = Vector((float(seg[1][0]), float(seg[1][1]), 0))
+            all_segments.append((p1, p2))
 
-        for p1, p2 in line_segments:
-            d = p2 - p1
-            if d.length < 1e-6:
-                continue
+    # Branch 2: DXF File entity ingestion
+    elif dxf_path:
+        if not os.path.exists(dxf_path):
+            raise RuntimeError(f"DXF file not found: {dxf_path}")
 
-            line_count += 1
+        print(f"📄 Loading DXF: {dxf_path}")
+        doc = ezdxf.readfile(dxf_path)
+        msp = doc.modelspace()
 
-            minx = min(minx, p1.x, p2.x)
-            miny = min(miny, p1.y, p2.y)
-            maxx = max(maxx, p1.x, p2.x)
-            maxy = max(maxy, p1.y, p2.y)
+        # Build wall faces from LINE and LWPOLYLINE entities
+        for e in msp:
+            dxftype = e.dxftype()
 
-            d.normalize()
-            n = Vector((-d.y, d.x, 0)) * (wall_thickness / 2.0)
+            if dxftype == "LINE":
+                p1 = Vector((e.dxf.start.x, e.dxf.start.y, 0))
+                p2 = Vector((e.dxf.end.x, e.dxf.end.y, 0))
+                all_segments.append((p1, p2))
+            elif dxftype == "LWPOLYLINE":
+                try:
+                    pts = [Vector((p[0], p[1], 0)) for p in e.get_points()]
+                    if getattr(e, "is_closed", False) and len(pts) > 2:
+                        pts.append(pts[0])
+                    for idx in range(len(pts) - 1):
+                        all_segments.append((pts[idx], pts[idx + 1]))
+                except Exception:
+                    pass
+    else:
+        raise RuntimeError("No DXF path or line_segments provided in config")
 
-            try:
-                v1 = bm.verts.new(p1 + n)
-                v2 = bm.verts.new(p2 + n)
-                v3 = bm.verts.new(p2 - n)
-                v4 = bm.verts.new(p1 - n)
-                bm.faces.new((v1, v2, v3, v4))
-            except:
-                # Ignore degenerate faces
-                pass
+    for p1, p2 in all_segments:
+        d = p2 - p1
+        if d.length < 1e-6:
+            continue
+
+        line_count += 1
+
+        minx = min(minx, p1.x, p2.x)
+        miny = min(miny, p1.y, p2.y)
+        maxx = max(maxx, p1.x, p2.x)
+        maxy = max(maxy, p1.y, p2.y)
+
+        d.normalize()
+        n = Vector((-d.y, d.x, 0)) * (wall_thickness / 2.0)
+
+        try:
+            v1 = bm.verts.new(p1 + n)
+            v2 = bm.verts.new(p2 + n)
+            v3 = bm.verts.new(p2 - n)
+            v4 = bm.verts.new(p1 - n)
+            bm.faces.new((v1, v2, v3, v4))
+        except:
+            # Ignore degenerate faces
+            pass
 
     if line_count == 0 or not bm.faces:
         bm.free()
-        raise RuntimeError("No usable LINE or LWPOLYLINE entities for walls in DXF")
+        raise RuntimeError("No usable vector lines or entities for walls in blueprint")
 
     # Center the geometry around origin
     center = Vector(((minx + maxx) / 2.0, (miny + maxy) / 2.0, 0))

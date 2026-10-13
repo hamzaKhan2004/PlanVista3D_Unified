@@ -14,8 +14,33 @@ export const uploadBlueprint = async (file, options = {}) => {
   if (options.floors !== undefined) formData.append("floors", options.floors);
   if (options.wall_height !== undefined) formData.append("wall_height", options.wall_height);
   if (options.wall_thickness !== undefined) formData.append("wall_thickness", options.wall_thickness);
+  if (options.vector_assisted) formData.append("vector_assisted", "true");
+  if (options.target_size !== undefined) formData.append("target_size", options.target_size);
+  if (options.vector_data) formData.append("vector_data", JSON.stringify(options.vector_data));
 
   const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  return response.data;
+};
+
+/**
+ * Preprocesses a raster floor plan and extracts clean 2D vector wall geometry.
+ */
+export const extractVectorGeometry = async (file, options = {}) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  if (options.min_wall_length_px !== undefined) formData.append("min_wall_length_px", options.min_wall_length_px);
+  if (options.snap_radius !== undefined) formData.append("snap_radius", options.snap_radius);
+  if (options.wall_height !== undefined) formData.append("wall_height", options.wall_height);
+  if (options.wall_thickness !== undefined) formData.append("wall_thickness", options.wall_thickness);
+  if (options.target_size !== undefined) formData.append("target_size", options.target_size);
+
+  const response = await axios.post(`${API_BASE_URL}/vector-extract`, formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },

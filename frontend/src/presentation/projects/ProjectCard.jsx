@@ -12,12 +12,16 @@ const ProjectCard = ({ project, onDelete }) => {
     project?.type === "dxf" ||
     !!project?.taskId;
 
+  const isVectorAssisted =
+    project?.pipeline === "vector_assisted" ||
+    project?.analysis?.pipeline === "vector_assisted";
+
   const targetRoute = isModel
     ? `/cad-editor/${project.taskId || project.id}`
     : `/visualizer/${project.id}`;
 
   const imagePreview =
-    project.renderedImage || project.sourceImage || project.previewUrl || "/b1.jpg";
+    project.sourceThumbnail || project.renderedImage || project.sourceImage || project.previewUrl || "/b1.jpg";
 
   return (
     <div
@@ -43,14 +47,16 @@ const ProjectCard = ({ project, onDelete }) => {
           <span
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md shadow-xs ${
               isModel
-                ? "bg-purple-900/80 text-purple-100 dark:bg-[#9333ea]/30 dark:text-[#ddb8ff] dark:border dark:border-[#9333ea]/40"
+                ? isVectorAssisted
+                  ? "bg-orange-900/85 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ff9d54] dark:border dark:border-[#ff7417]/50"
+                  : "bg-purple-900/80 text-purple-100 dark:bg-[#9333ea]/30 dark:text-[#ddb8ff] dark:border dark:border-[#9333ea]/40"
                 : "bg-orange-900/80 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ffb691] dark:border dark:border-[#ff7417]/40"
             }`}
           >
             {isModel ? (
               <>
                 <Layers className="w-3 h-3 text-purple-300 dark:text-[#ddb8ff]" />
-                <span>3D CAD Studio</span>
+                <span>{isVectorAssisted ? "Vector 3D Model" : "3D CAD Studio"}</span>
               </>
             ) : (
               <>

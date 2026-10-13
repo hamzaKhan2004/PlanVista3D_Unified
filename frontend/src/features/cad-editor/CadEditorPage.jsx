@@ -132,7 +132,27 @@ const CadEditorPage = () => {
         }
 
         // Poll / query Flask backend status
-        const statusData = await checkTaskStatus(activeTaskId);
+        let statusData = await checkTaskStatus(activeTaskId);
+        let attempts = 0;
+        const maxAttempts = 45; // 60+ seconds maximum wait for Blender headless execution
+
+        while (
+          (statusData.status === "processing" ||
+            statusData.status === "pending" ||
+            statusData.status === "queued") &&
+          attempts < maxAttempts &&
+          !isCancelled
+        ) {
+          attempts++;
+          await new Promise((res) => setTimeout(res, 1500));
+          if (isCancelled) return;
+          try {
+            statusData = await checkTaskStatus(activeTaskId);
+          } catch (pollErr) {
+            console.warn("Retrying task status poll...", pollErr);
+          }
+        }
+
         if (isCancelled) return;
 
         if (statusData.status === "completed") {
@@ -216,6 +236,7 @@ const CadEditorPage = () => {
             status: "completed",
             fileName: localProj?.fileName || statusData?.source_file?.filename,
             type: localProj?.type || statusData?.source_file?.type,
+            pipeline: localProj?.pipeline || analysis?.pipeline || "standard",
             floors: localProj?.floors || analysis?.floors || 1,
             wallHeight: localProj?.wallHeight || analysis?.wall_height,
             wallThickness: localProj?.wallThickness || analysis?.wall_thickness,
