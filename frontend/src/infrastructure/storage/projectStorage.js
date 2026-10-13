@@ -1,4 +1,5 @@
 import { LOCAL_STORAGE_CAD_PROJECTS_KEY } from "../config/constants";
+import { deleteModelBackendTask } from "../api/modelApiClient";
 
 /**
  * Loads all locally saved 3D CAD model projects from localStorage.
@@ -107,18 +108,28 @@ export const updateModelProjectCustomization = (idOrTaskId, customizationData) =
 };
 
 /**
- * Deletes a model project by ID.
+ * Deletes a model project by ID and cleans up its backend files.
  * @param {string} id
  */
-export const deleteModelProject = (id) => {
+export const deleteModelProject = async (id) => {
   try {
     const existing = loadModelProjects();
+    const target = existing.find((p) => p.id === id || p.taskId === id);
+    const taskIdToDelete = target?.taskId || id;
+
+    // Remove backend artifacts if task ID exists
+    if (taskIdToDelete) {
+      await deleteModelBackendTask(taskIdToDelete);
+    }
+
     const filtered = existing.filter((p) => p.id !== id && p.taskId !== id);
     localStorage.setItem(
       LOCAL_STORAGE_CAD_PROJECTS_KEY,
       JSON.stringify(filtered)
     );
+    return true;
   } catch (err) {
     console.error("Failed to delete CAD project:", err);
+    throw err;
   }
 };

@@ -8,13 +8,21 @@ import {
   Upload,
   CheckCircle2,
   Sparkles,
+  FileText,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  X,
+  SplitSquareVertical,
 } from "lucide-react";
 import CadToolbar from "../../presentation/cad/CadToolbar";
 import CadPropertiesPanel from "../../presentation/cad/CadPropertiesPanel";
 import SceneHierarchyPanel from "../../presentation/cad/SceneHierarchyPanel";
 import DimensionOverlay from "../../presentation/cad/DimensionOverlay";
+import SourceBlueprintPanel from "../../presentation/cad/SourceBlueprintPanel";
 import CadViewport from "./CadViewport";
 import Button from "../../presentation/ui/Button";
+import Modal from "../../presentation/ui/Modal";
 import LoadingSpinner from "../../presentation/ui/LoadingSpinner";
 import ErrorMessage from "../../presentation/ui/ErrorMessage";
 import EmptyState from "../../presentation/ui/EmptyState";
@@ -27,6 +35,7 @@ import {
   getModelProjectById,
   updateModelProjectCustomization,
   saveModelProject,
+  deleteModelProject,
 } from "../../infrastructure/storage/projectStorage";
 import {
   downloadGlbAsset,
@@ -56,6 +65,11 @@ const CadEditorPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+  const [deleteProjectError, setDeleteProjectError] = useState("");
+  const [showCompareOverlay, setShowCompareOverlay] = useState(false);
 
   // Editor viewport settings
   const [transformMode, setTransformMode] = useState(TRANSFORM_MODES.SELECT);
@@ -192,20 +206,43 @@ const CadEditorPage = () => {
             });
           }
 
-          // Ensure project is registered in localStorage
-          saveModelProject({
+          // Ensure project is registered in localStorage with source metadata
+          const updatedProject = {
             id: activeTaskId,
             taskId: activeTaskId,
             name: localProj?.name || `Residence CAD ${activeTaskId.slice(0, 8)}`,
             model_file: modelFile,
             analysis,
             status: "completed",
-          });
+            fileName: localProj?.fileName || statusData?.source_file?.filename,
+            type: localProj?.type || statusData?.source_file?.type,
+            floors: localProj?.floors || analysis?.floors || 1,
+            wallHeight: localProj?.wallHeight || analysis?.wall_height,
+            wallThickness: localProj?.wallThickness || analysis?.wall_thickness,
+            timestamp: localProj?.timestamp || statusData?.source_file?.uploaded_at || Date.now(),
+            sourceThumbnail: localProj?.sourceThumbnail,
+            sourceDownloadUrl: localProj?.sourceDownloadUrl || statusData?.source_file?.download_url || `/api/source/${activeTaskId}`,
+            source_file: statusData?.source_file || localProj?.source_file,
+          };
+          saveModelProject(updatedProject);
+          setModelProject(updatedProject);
         } else if (statusData.status === "error") {
-          setError(statusData.error || "Model generation encountered an error");
+          // If we already have local project or completed model file, do NOT block reopening
+          if (localProj?.model_file || localProj?.status === "completed") {
+            console.warn("Backend reported task error, but local project is completed. Proceeding with saved artifact.");
+            setModelProject(localProj);
+          } else {
+            setError(statusData.error || "Model generation encountered an error");
+          }
         }
       } catch (err) {
         console.warn("Status poll error in CAD editor:", err);
+        const localProj = getModelProjectById(activeTaskId);
+        if (localProj?.model_file || localProj?.status === "completed") {
+          setModelProject(localProj);
+        } else {
+          setError("Failed to connect to model generation service.");
+        }
       } finally {
         if (!isCancelled) setLoading(false);
       }
@@ -463,6 +500,21 @@ const CadEditorPage = () => {
     }
   };
 
+  // Delete Project Confirmation Handler
+  const handleDeleteProjectConfirm = async () => {
+    if (!activeTaskId || isDeletingProject) return;
+    try {
+      setIsDeletingProject(true);
+      setDeleteProjectError("");
+      await deleteModelProject(activeTaskId);
+      navigate("/projects");
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      setDeleteProjectError(err.message || "Failed to delete CAD project from storage.");
+      setIsDeletingProject(false);
+    }
+  };
+
   // Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -485,7 +537,7 @@ const CadEditorPage = () => {
   const selectedData = getSelectedObjectData();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4.5rem)] bg-[#fdfbf7] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fdfbf7] dark:bg-[#141311] overflow-hidden">
       {/* Top CAD Studio Bar */}
       <CadToolbar
         transformMode={transformMode}
@@ -508,6 +560,7 @@ const CadEditorPage = () => {
         onTakeScreenshot={() => viewportRef.current?.takeScreenshot()}
         onSaveProject={handleSaveProject}
         onExportGlb={handleExportGlb}
+        onDeleteProject={() => setShowDeleteModal(true)}
       />
 
       {/* Save Toast Notification */}
@@ -520,8 +573,39 @@ const CadEditorPage = () => {
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Viewport Guard: 3D CAD Editing Unavailable on Mobile */}
+        <div className="sm:hidden absolute inset-0 z-50 bg-[#fdfbf7]/98 dark:bg-[#141311]/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/15 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mb-4 border border-orange-200 dark:border-[#ff7417]/30">
+            <Layers className="w-7 h-7" />
+          </div>
+          <h3 className="font-serif text-lg font-bold text-zinc-900 dark:text-[#f5f0e8] mb-2">
+            3D CAD Editor Requires Desktop or Tablet
+          </h3>
+          <p className="text-xs text-zinc-600 dark:text-[#b4ada3] max-w-xs leading-relaxed mb-6">
+            Precision 3D modeling, coordinate manipulation, and CAD scene outliner tools require a viewport width of 640px or higher. Please use a tablet or desktop browser to edit this model.
+          </p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/projects")}
+              className="text-xs"
+            >
+              Back to Projects
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="text-xs"
+            >
+              Overview
+            </Button>
+          </div>
+        </div>
+
         {/* Left: Scene Hierarchy Tree Panel */}
-        <div className="w-64 border-r border-[#eae4dc] h-full hidden md:block shrink-0">
+        <div className="w-64 border-r border-[#eae4dc] dark:border-[#39342f] h-full hidden md:block shrink-0 dark:bg-[#1d1b19]">
           <SceneHierarchyPanel
             dynamicObjects={dynamicObjects}
             selectedObjectId={selectedObject?.id}
@@ -535,7 +619,7 @@ const CadEditorPage = () => {
         {/* Center: 3D Viewport */}
         <div className="flex-1 h-full relative">
           {loading ? (
-            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6]">
+            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] dark:bg-[#141311]">
               <LoadingSpinner
                 label="Preparing CAD Workspace..."
                 description="Loading geometry meshes and material shaders"
@@ -550,7 +634,7 @@ const CadEditorPage = () => {
               />
             </div>
           ) : !modelUrl ? (
-            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] p-6">
+            <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] dark:bg-[#141311] p-6">
               <EmptyState
                 icon={Layers}
                 title="No 3D Model Loaded"
@@ -561,6 +645,17 @@ const CadEditorPage = () => {
             </div>
           ) : (
             <>
+              {/* Floating Source Blueprint Button for rapid inspection */}
+              <button
+                type="button"
+                onClick={() => setShowSourceModal(true)}
+                className="absolute top-4 left-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] transition-all text-xs font-semibold cursor-pointer"
+                title="View original blueprint details and inspection"
+              >
+                <FileText className="w-3.5 h-3.5 text-orange-500" />
+                <span>Source Blueprint</span>
+              </button>
+
               <CadViewport
                 ref={viewportRef}
                 modelUrl={modelUrl}
@@ -575,12 +670,52 @@ const CadEditorPage = () => {
                 selectedObject={selectedObject}
                 objectData={selectedData}
               />
+
+              {/* Floating Picture-in-Picture Blueprint Comparison Card */}
+              {showCompareOverlay && (modelProject?.sourceThumbnail || modelProject?.sourceDownloadUrl) && (
+                <div className="absolute bottom-6 right-6 z-30 w-72 bg-white/95 dark:bg-[#1d1b19]/95 backdrop-blur-md rounded-2xl border border-[#eae4dc] dark:border-[#39342f] shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                  <div className="flex items-center justify-between px-3.5 py-2 border-b border-[#eae4dc] dark:border-[#39342f] bg-[#fdfbf7]/80 dark:bg-[#24211f]/90">
+                    <div className="flex items-center gap-1.5">
+                      <SplitSquareVertical className="w-3.5 h-3.5 text-orange-500" />
+                      <span className="text-xs font-bold text-zinc-900 dark:text-[#f5f0e8]">
+                        2D Blueprint Comparison
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCompareOverlay(false)}
+                      className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-[#f5f0e8] transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="p-2 space-y-2">
+                    <div className="aspect-4/3 w-full bg-[#f4eee6] dark:bg-[#141311] rounded-xl overflow-hidden border border-zinc-200/60 dark:border-[#39342f]">
+                      <img
+                        src={modelProject.sourceThumbnail || modelProject.sourceDownloadUrl}
+                        alt="2D Blueprint Comparison"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="px-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#746e65]">
+                      <span className="truncate max-w-[150px]">{modelProject.fileName || "Blueprint"}</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSourceModal(true)}
+                        className="text-orange-600 dark:text-[#ff7417] font-semibold hover:underline cursor-pointer"
+                      >
+                        Inspect
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
 
         {/* Right: Property Inspector Panel */}
-        <div className="w-80 border-l border-[#eae4dc] h-full hidden sm:block shrink-0 bg-[#fdfbf7]">
+        <div className="w-80 border-l border-[#eae4dc] dark:border-[#39342f] h-full hidden sm:block shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19]">
           <CadPropertiesPanel
             selectedObject={selectedObject}
             objectData={selectedData}
@@ -589,9 +724,92 @@ const CadEditorPage = () => {
             onUpdateTransform={handleUpdateTransform}
             onToggleVisibility={handleToggleVisibility}
             onDeleteObject={handleDeleteObject}
+            project={modelProject}
+            taskId={activeTaskId}
+            onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
+            isComparing={showCompareOverlay}
+            onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
           />
         </div>
       </div>
+
+      {/* Source Blueprint Modal */}
+      <Modal
+        isOpen={showSourceModal}
+        onClose={() => setShowSourceModal(false)}
+        title="Original Blueprint"
+      >
+        <SourceBlueprintPanel
+          project={modelProject}
+          taskId={activeTaskId}
+          onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
+          isComparing={showCompareOverlay}
+          onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
+        />
+      </Modal>
+
+      {/* Delete CAD Project Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => !isDeletingProject && setShowDeleteModal(false)}
+        title="Delete CAD Project"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
+                Are you sure you want to delete this CAD project?
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1">
+                You are about to permanently delete{" "}
+                <span className="font-semibold text-zinc-900 dark:text-[#f5f0e8]">
+                  "{modelProject?.name || `Project ${activeTaskId}`}"
+                </span>
+                . All 3D geometry meshes, source files, and project configurations will be deleted from storage. This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          {deleteProjectError && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-300 text-xs">
+              {deleteProjectError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc] dark:border-[#39342f]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeletingProject}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDeleteProjectConfirm}
+              disabled={isDeletingProject}
+              className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+            >
+              {isDeletingProject ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Delete Project</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

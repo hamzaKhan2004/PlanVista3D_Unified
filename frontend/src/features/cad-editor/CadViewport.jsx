@@ -16,6 +16,37 @@ import {
 } from "@react-three/drei";
 import { Color, BoxGeometry, MeshStandardMaterial, Mesh, Vector3 } from "three";
 import { CAMERA_PRESETS } from "../../domain/cad/cadTypes";
+import { useTheme } from "../../presentation/layout/AppLayout";
+
+class ModelErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.warn("Failed to load 3D GLB model in viewport:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Html center>
+          <div className="flex flex-col items-center gap-2 p-5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl border border-red-200 dark:border-red-900/50 shadow-xl max-w-sm text-center">
+            <span className="text-xs font-bold text-red-600 dark:text-red-400">
+              Model Artifact Unavailable
+            </span>
+            <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
+              The generated .GLB geometry artifact was not found on the server. Please verify the backend outputs directory.
+            </span>
+          </div>
+        </Html>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const EditableModel = ({
   url,
@@ -44,8 +75,8 @@ const EditableModel = ({
 
     allDynamicList.forEach((item) => {
       if (item.isNew && !dynamicMeshes.has(item.id)) {
-        const scale = item.scale || [2, 3, 0.2];
-        const geometry = new BoxGeometry(scale[0], scale[1], scale[2]);
+        // Create unit geometry; actual dimensions driven via mesh.scale for easy updates
+        const geometry = new BoxGeometry(1, 1, 1);
         const material = new MeshStandardMaterial({
           color: new Color(item.color || "#cccccc"),
           roughness: item.roughness !== undefined ? item.roughness : 0.7,
@@ -56,7 +87,9 @@ const EditableModel = ({
         const mesh = new Mesh(geometry, material);
 
         const pos = item.position || [0, 0, 0];
+        const scale = item.scale || [1, 1, 1];
         mesh.position.set(pos[0], pos[1], pos[2]);
+        mesh.scale.set(scale[0], scale[1], scale[2]);
         mesh.name = item.id;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -68,7 +101,8 @@ const EditableModel = ({
         const mesh = dynamicMeshes.get(item.id);
         if (mesh) {
           if (item.position) mesh.position.set(...item.position);
-          if (item.scale) mesh.scale.set(1, 1, 1); // Box geometry is already scaled, or use scale
+          // Apply scale directly to the mesh transform (geometry was created at unit size reference)
+          if (item.scale) mesh.scale.set(item.scale[0], item.scale[1], item.scale[2]);
           if (mesh.material) {
             mesh.material.color = new Color(item.color || "#cccccc");
             if (item.roughness !== undefined) mesh.material.roughness = item.roughness;
@@ -298,6 +332,8 @@ const CadViewport = forwardRef(
     ref
   ) => {
     const cameraRef = useRef();
+    const { theme } = useTheme();
+    const isDark = theme === "dark";
 
     useImperativeHandle(ref, () => ({
       resetCamera: () => cameraRef.current?.resetCamera(),
@@ -308,7 +344,7 @@ const CadViewport = forwardRef(
     }));
 
     return (
-      <div className="relative w-full h-full bg-[#f4eee6]">
+      <div className="relative w-full h-full bg-[#f4eee6] dark:bg-[#141311]">
         <Canvas
           shadows
           camera={{ position: [15, 15, 15], fov: 45 }}
@@ -316,7 +352,7 @@ const CadViewport = forwardRef(
           className="w-full h-full"
         >
           {/* Ambient and Studio Lighting */}
-          <ambientLight intensity={0.7} />
+          <ambientLight intensity={isDark ? 0.8 : 0.7} />
           <directionalLight
             position={[20, 30, 20]}
             intensity={1.2}
@@ -332,8 +368,8 @@ const CadViewport = forwardRef(
               infiniteGrid
               cellSize={1}
               sectionSize={5}
-              cellColor="#d3c7b5"
-              sectionColor="#a39682"
+              cellColor={isDark ? "#2b2a27" : "#d3c7b5"}
+              sectionColor={isDark ? "#39342f" : "#a39682"}
               fadeDistance={60}
               fadeStrength={1.5}
             />
@@ -342,9 +378,9 @@ const CadViewport = forwardRef(
           <Suspense
             fallback={
               <Html center>
-                <div className="flex flex-col items-center gap-2 p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-zinc-200 shadow-xl">
+                <div className="flex flex-col items-center gap-2 p-4 bg-white/90 dark:bg-[#1d1b19]/90 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-[#39342f] shadow-xl">
                   <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs font-semibold text-zinc-800">
+                  <span className="text-xs font-semibold text-zinc-800 dark:text-[#f5f0e8]">
                     Mounting 3D Geometry...
                   </span>
                 </div>
@@ -352,13 +388,15 @@ const CadViewport = forwardRef(
             }
           >
             {modelUrl && (
-              <EditableModel
-                url={modelUrl}
-                editorState={editorState}
-                dynamicObjects={dynamicObjects}
-                selectedObject={selectedObject}
-                onObjectSelect={onObjectSelect}
-              />
+              <ModelErrorBoundary>
+                <EditableModel
+                  url={modelUrl}
+                  editorState={editorState}
+                  dynamicObjects={dynamicObjects}
+                  selectedObject={selectedObject}
+                  onObjectSelect={onObjectSelect}
+                />
+              </ModelErrorBoundary>
             )}
             <Environment preset="apartment" />
           </Suspense>

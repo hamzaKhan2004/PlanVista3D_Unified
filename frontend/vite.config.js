@@ -27,4 +27,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Three.js + React Three Fiber — heaviest dependencies
+          "three-vendor": ["three"],
+          "r3f-vendor": ["@react-three/fiber", "@react-three/drei"],
+          // React core
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          // UI utilities
+          "ui-vendor": ["lucide-react", "react-compare-slider"],
+        },
+      },
+    },
+    // Raise the warning threshold since Three.js chunks are inherently large
+    chunkSizeWarningLimit: 600,
+  },
 });

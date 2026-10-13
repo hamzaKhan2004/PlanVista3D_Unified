@@ -63,17 +63,17 @@ const SceneHierarchyPanel = ({
   ];
 
   return (
-    <div className="flex flex-col h-full bg-[#fdfbf7] text-xs text-zinc-700 divide-y divide-[#eae4dc]">
+    <div className="flex flex-col h-full bg-[#fdfbf7] dark:bg-[#1d1b19] text-xs text-zinc-700 dark:text-[#b4ada3] divide-y divide-[#eae4dc] dark:divide-[#39342f]">
       {/* Search Header */}
       <div className="p-3">
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65] absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search scene elements..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 bg-white text-xs placeholder:text-zinc-400 focus:outline-orange-500"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] text-xs dark:text-[#f5f0e8] placeholder:text-zinc-400 dark:placeholder:text-[#746e65] focus:outline-orange-500"
           />
         </div>
       </div>
@@ -89,41 +89,41 @@ const SceneHierarchyPanel = ({
           if (searchQuery && filteredItems.length === 0) return null;
 
           return (
-            <div key={key} className="rounded-xl border border-zinc-200/80 bg-white overflow-hidden shadow-2xs">
+            <div key={key} className="rounded-xl border border-zinc-200/80 dark:border-[#39342f] bg-white dark:bg-[#211f1d] overflow-hidden shadow-2xs">
               {/* Category Header */}
-              <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#fbf9f5] border-b border-zinc-100">
+              <div className="flex items-center justify-between px-2.5 py-1.5 bg-[#fbf9f5] dark:bg-[#24211f] border-b border-zinc-100 dark:border-[#39342f]">
                 <button
                   onClick={() => toggleCategory(key)}
-                  className="flex items-center gap-1.5 font-medium text-zinc-800 hover:text-orange-600 transition-colors"
+                  className="flex items-center gap-1.5 font-medium text-zinc-800 dark:text-[#f5f0e8] hover:text-orange-600 dark:hover:text-[#ff7417] transition-colors"
                 >
                   {expandedCategories[key] ? (
-                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65]" />
                   ) : (
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65]" />
                   )}
-                  <Icon className="w-3.5 h-3.5 text-zinc-500" />
+                  <Icon className="w-3.5 h-3.5 text-zinc-500 dark:text-[#b4ada3]" />
                   <span>{label}</span>
-                  <span className="text-[10px] text-zinc-400">({items.length})</span>
+                  <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">({items.length})</span>
                 </button>
 
                 <button
                   onClick={() => onToggleCategoryVisibility(key)}
                   title={isCategoryVisible ? `Hide all ${label}` : `Show all ${label}`}
-                  className="p-1 text-zinc-400 hover:text-zinc-700 rounded transition-colors"
+                  className="p-1 text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] rounded transition-colors"
                 >
                   {isCategoryVisible ? (
                     <Eye className="w-3.5 h-3.5" />
                   ) : (
-                    <EyeOff className="w-3.5 h-3.5 text-zinc-300" />
+                    <EyeOff className="w-3.5 h-3.5 text-zinc-300 dark:text-[#524d46]" />
                   )}
                 </button>
               </div>
 
               {/* Items List */}
               {expandedCategories[key] && (
-                <div className="divide-y divide-zinc-50">
+                <div className="divide-y divide-zinc-50 dark:divide-[#2b2a27]">
                   {filteredItems.length === 0 ? (
-                    <div className="p-2 text-center text-zinc-400 text-[11px]">
+                    <div className="p-2 text-center text-zinc-400 dark:text-[#746e65] text-[11px]">
                       No elements in this category
                     </div>
                   ) : (
@@ -136,8 +136,8 @@ const SceneHierarchyPanel = ({
                           key={item.id}
                           className={`flex items-center justify-between px-3 py-1.5 transition-colors cursor-pointer ${
                             isSelected
-                              ? "bg-orange-50/80 text-orange-900 font-semibold"
-                              : "hover:bg-zinc-50 text-zinc-600"
+                              ? "bg-orange-50/80 dark:bg-[#ff7417]/15 text-orange-900 dark:text-[#ff7417] font-semibold"
+                              : "hover:bg-zinc-50 dark:hover:bg-[#2b2a27]/60 text-zinc-600 dark:text-[#e6e2de]"
                           }`}
                           onClick={() =>
                             onSelectObject({
@@ -149,12 +149,12 @@ const SceneHierarchyPanel = ({
                         >
                           <div className="flex items-center gap-2 truncate">
                             <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 dark:border-white/10"
                               style={{ backgroundColor: item.color || "#cccccc" }}
                             />
                             <span className="truncate">{item.name || item.id}</span>
                             {item.isNew && (
-                              <span className="text-[9px] px-1 bg-emerald-100 text-emerald-800 rounded font-medium">
+                              <span className="text-[9px] px-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 rounded font-medium">
                                 NEW
                               </span>
                             )}
@@ -165,12 +165,12 @@ const SceneHierarchyPanel = ({
                               e.stopPropagation();
                               onToggleVisibility(item.id);
                             }}
-                            className="p-0.5 text-zinc-400 hover:text-zinc-700"
+                            className="p-0.5 text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8]"
                           >
                             {isVisible ? (
                               <Eye className="w-3 h-3" />
                             ) : (
-                              <EyeOff className="w-3 h-3 text-red-400" />
+                              <EyeOff className="w-3 h-3 text-red-400 dark:text-red-400/80" />
                             )}
                           </button>
                         </div>

@@ -12,11 +12,15 @@ import {
   Layers,
   Share2,
   Check,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
-import Button from "../../components/ui/Button";
-import { useAuth } from "../../components/layout/AppLayout";
+import Button from "../../presentation/ui/Button";
+import Modal from "../../presentation/ui/Modal";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import { generate3DViews } from "../../lib/puter/ai.action";
-import { createProject, getProjectById } from "../../lib/puter/puter.action";
+import { createProject, getProjectById, deleteProject } from "../../lib/puter/puter.action";
 
 const ImageVisualizer = () => {
   const { id } = useParams();
@@ -28,6 +32,9 @@ const ImageVisualizer = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentImage, setCurrentImage] = useState(null);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const hasInitialGenerated = useRef(false);
 
@@ -84,6 +91,25 @@ const ImageVisualizer = () => {
     setTimeout(() => setCopiedShare(false), 2000);
   };
 
+  const handleDeleteProject = async () => {
+    if (!id || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      setDeleteError("");
+
+      await deleteProject({ id });
+
+      navigate("/projects");
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      setDeleteError(
+        err.message || "Failed to delete project from storage. Please verify your connection."
+      );
+      setIsDeleting(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -138,23 +164,23 @@ const ImageVisualizer = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Top Bar */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 mb-8 border-b border-[#eae4dc] gap-4">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-6 mb-8 border-b border-[#eae4dc] dark:border-[#39342f] gap-4">
         <div>
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500 hover:text-zinc-900 mb-2 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-[#b4ada3] hover:text-zinc-900 dark:hover:text-[#f5f0e8] mb-2 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Studio
           </button>
           <div className="flex items-center gap-3">
-            <h1 className="font-serif text-3xl font-bold text-zinc-900 tracking-tight">
+            <h1 className="font-serif text-3xl font-bold text-zinc-900 dark:text-[#f5f0e8] tracking-tight">
               {project?.name || `Residence ${id}`}
             </h1>
             <span className="badge-warm">
-              <Sparkles className="w-3 h-3 text-orange-500" /> AI Visualization
+              <Sparkles className="w-3 h-3 text-orange-500 dark:text-[#ff7417]" /> AI Visualization
             </span>
           </div>
-          <p className="text-xs text-zinc-500 mt-1">
+          <p className="text-xs text-zinc-500 dark:text-[#b4ada3] mt-1 font-mono">
             Created {project?.timestamp ? new Date(project.timestamp).toLocaleDateString() : "Recently"}
           </p>
         </div>
@@ -164,12 +190,12 @@ const ImageVisualizer = () => {
             variant="outline"
             size="sm"
             onClick={handleShare}
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 dark:border-[#39342f] dark:text-[#e6e2de] dark:hover:bg-[#211f1d]"
           >
             {copiedShare ? (
               <>
-                <Check className="w-3.5 h-3.5 text-green-600" />
-                <span className="text-green-700">Link Copied!</span>
+                <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                <span className="text-green-700 dark:text-green-300">Link Copied!</span>
               </>
             ) : (
               <>
@@ -184,7 +210,7 @@ const ImageVisualizer = () => {
             size="sm"
             onClick={() => project && runGeneration(project)}
             disabled={isProcessing}
-            className="flex items-center gap-1.5"
+            className="flex items-center gap-1.5 dark:bg-[#24211f] dark:border-[#39342f] dark:text-[#f5f0e8] dark:hover:bg-[#2c2825]"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${isProcessing ? "animate-spin" : ""}`} />
             <span>Re-render</span>
@@ -200,6 +226,20 @@ const ImageVisualizer = () => {
             <Download className="w-3.5 h-3.5" />
             <span>Export Image</span>
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDeleteError("");
+              setShowDeleteModal(true);
+            }}
+            disabled={isProcessing || isDeleting}
+            className="flex items-center gap-1.5 text-zinc-600 dark:text-[#b4ada3] hover:text-red-600 dark:hover:text-red-400 dark:border-[#39342f] dark:hover:bg-red-950/20"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Project</span>
+          </Button>
         </div>
       </div>
 
@@ -207,27 +247,27 @@ const ImageVisualizer = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Comparison Stage (8 Cols) */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="bg-white border border-[#eae4dc] rounded-2xl overflow-hidden shadow-sm relative min-h-[500px] flex items-center justify-center">
+          <div className="bg-white dark:bg-[#1d1b19] border border-[#eae4dc] dark:border-[#39342f] rounded-2xl overflow-hidden shadow-sm relative min-h-[500px] flex items-center justify-center">
             {isProcessing ? (
-              <div className="absolute inset-0 bg-[#fdfbf7]/95 z-20 flex flex-col items-center justify-center p-8 text-center backdrop-blur-sm">
-                <div className="w-16 h-16 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mb-6 shadow-sm">
+              <div className="absolute inset-0 bg-[#fdfbf7]/95 dark:bg-[#141311]/95 z-20 flex flex-col items-center justify-center p-8 text-center backdrop-blur-sm">
+                <div className="w-16 h-16 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mb-6 shadow-sm">
                   <Sparkles className="w-8 h-8 animate-pulse" />
                 </div>
-                <h3 className="font-serif text-2xl font-bold text-zinc-900 mb-2">
+                <h3 className="font-serif text-2xl font-bold text-zinc-900 dark:text-[#f5f0e8] mb-2">
                   Rendering 3D Visualization...
                 </h3>
-                <p className="text-sm text-zinc-500 max-w-sm">
+                <p className="text-sm text-zinc-500 dark:text-[#b4ada3] max-w-sm">
                   Applying photorealistic materials, daylighting, and spatial furnishings based on your floor plan lines.
                 </p>
-                <div className="w-48 h-1.5 bg-zinc-200 rounded-full mt-6 overflow-hidden">
-                  <div className="h-full bg-orange-500 animate-pulse rounded-full w-2/3" />
+                <div className="w-48 h-1.5 bg-zinc-200 dark:bg-[#2b2a27] rounded-full mt-6 overflow-hidden">
+                  <div className="h-full bg-orange-500 dark:bg-[#ff7417] animate-pulse rounded-full w-2/3" />
                 </div>
               </div>
             ) : null}
 
             {project?.sourceImage && currentImage ? (
               <div className="w-full h-full flex flex-col items-center p-4">
-                <div className="w-full overflow-hidden rounded-xl border border-zinc-200 shadow-sm">
+                <div className="w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-[#39342f] shadow-sm">
                   <ReactCompareSlider
                     defaultValue={50}
                     className="w-full max-h-[640px] object-contain"
@@ -245,11 +285,11 @@ const ImageVisualizer = () => {
                     }
                   />
                 </div>
-                <div className="flex items-center justify-between w-full px-2 pt-3 text-xs text-zinc-500">
+                <div className="flex items-center justify-between w-full px-2 pt-3 text-xs text-zinc-500 dark:text-[#b4ada3]">
                   <span className="flex items-center gap-1 font-medium">
                     ← Original 2D Blueprint
                   </span>
-                  <span className="font-semibold text-orange-600">
+                  <span className="font-semibold text-orange-600 dark:text-[#ff7417]">
                     Drag slider to compare
                   </span>
                   <span className="flex items-center gap-1 font-medium">
@@ -262,11 +302,11 @@ const ImageVisualizer = () => {
                 <img
                   src={project.sourceImage}
                   alt="Original Blueprint"
-                  className="max-h-[500px] mx-auto rounded-lg shadow-sm border border-zinc-200"
+                  className="max-h-[500px] mx-auto rounded-lg shadow-sm border border-zinc-200 dark:border-[#39342f]"
                 />
               </div>
             ) : (
-              <p className="text-sm text-zinc-400">No image data found for this project.</p>
+              <p className="text-sm text-zinc-400 dark:text-[#746e65]">No image data found for this project.</p>
             )}
           </div>
         </div>
@@ -274,37 +314,101 @@ const ImageVisualizer = () => {
         {/* Sidebar Info & Controls (4 Cols) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="card-warm space-y-4">
-            <h3 className="font-serif text-xl font-bold text-zinc-900 border-b border-zinc-100 pb-3">
+            <h3 className="font-serif text-xl font-bold text-zinc-900 dark:text-[#f5f0e8] border-b border-zinc-100 dark:border-[#39342f] pb-3">
               Render Details
             </h3>
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-1 border-b border-zinc-100">
-                <span className="text-zinc-500">Model Engine</span>
-                <span className="font-medium text-zinc-800">Puter Generative AI</span>
+              <div className="flex justify-between py-1 border-b border-zinc-100 dark:border-[#39342f]">
+                <span className="text-zinc-500 dark:text-[#b4ada3]">Model Engine</span>
+                <span className="font-medium text-zinc-800 dark:text-[#f5f0e8]">Puter Generative AI</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-zinc-100">
-                <span className="text-zinc-500">Output Format</span>
-                <span className="font-medium text-zinc-800">1024 × 1024 PNG</span>
+              <div className="flex justify-between py-1 border-b border-zinc-100 dark:border-[#39342f]">
+                <span className="text-zinc-500 dark:text-[#b4ada3]">Output Format</span>
+                <span className="font-medium text-zinc-800 dark:text-[#f5f0e8]">1024 × 1024 PNG</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-zinc-100">
-                <span className="text-zinc-500">View Angle</span>
-                <span className="font-medium text-zinc-800">Orthographic Top-Down</span>
+              <div className="flex justify-between py-1 border-b border-zinc-100 dark:border-[#39342f]">
+                <span className="text-zinc-500 dark:text-[#b4ada3]">View Angle</span>
+                <span className="font-medium text-zinc-800 dark:text-[#f5f0e8]">Orthographic Top-Down</span>
               </div>
-              <div className="flex justify-between py-1 border-b border-zinc-100">
-                <span className="text-zinc-500">Text Annotations</span>
-                <span className="font-medium text-zinc-800">Stripped / Synthesized</span>
+              <div className="flex justify-between py-1 border-b border-zinc-100 dark:border-[#39342f]">
+                <span className="text-zinc-500 dark:text-[#b4ada3]">Text Annotations</span>
+                <span className="font-medium text-zinc-800 dark:text-[#f5f0e8]">Stripped / Synthesized</span>
               </div>
             </div>
 
             <div className="pt-2">
-              <p className="text-xs text-zinc-500 leading-relaxed bg-[#fdfbf7] p-3 rounded-xl border border-[#eae4dc]">
+              <p className="text-xs text-zinc-500 dark:text-[#b4ada3] leading-relaxed bg-[#fdfbf7] dark:bg-[#141311] p-3 rounded-xl border border-[#eae4dc] dark:border-[#39342f]">
                 💡 <strong>Need real 3D meshes?</strong> If you want to orbit, inspect wall geometries, or download an interactive <strong>.GLB</strong> file, try our <strong>Generate Model</strong> pipeline.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => !isDeleting && setShowDeleteModal(false)}
+        title="Delete Project"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
+                Are you sure you want to delete this project?
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1">
+                You are about to permanently delete{" "}
+                <span className="font-semibold text-zinc-900 dark:text-[#f5f0e8]">
+                  "{project?.name || `Project ${id}`}"
+                </span>
+                . This will remove the source blueprint, rendered output, and project records from cloud storage.
+              </p>
+            </div>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-xs">
+              {deleteError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc] dark:border-[#39342f]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+              className="dark:border-[#39342f] dark:text-[#e6e2de]"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Delete Project</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

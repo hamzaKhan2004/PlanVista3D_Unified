@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: #fdfbf7;
   --color-foreground: #1a1a1a;
@@ -15,6 +17,21 @@
   --shadow-warm-sm: 0 1px 3px rgba(30, 20, 10, 0.05);
   --shadow-warm: 0 4px 20px -2px rgba(30, 20, 10, 0.08);
   --shadow-warm-lg: 0 10px 30px -4px rgba(30, 20, 10, 0.12);
+  --color-atelier-canvas: #141311;
+  --color-atelier-surface: #141311;
+  --color-atelier-panel: #1d1b19;
+  --color-atelier-card: #211f1d;
+  --color-atelier-elevated: #2b2a27;
+  --color-atelier-highest: #363432;
+  --color-atelier-border: #39342f;
+  --color-atelier-orange: #ff7417;
+  --color-atelier-purple: #9333ea;
+  --color-atelier-amber: #f59e0b;
+  --color-atelier-text: #e6e2de;
+  --color-atelier-muted: #b4ada3;
+  --font-playfair: "Playfair Display", serif;
+  --font-jakarta: "Plus Jakarta Sans", sans-serif;
+  --font-jetbrains: "JetBrains Mono", monospace;
 }
 
 *::selection {
@@ -120,4 +137,181 @@
 
 .animate-pulse-subtle {
   animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ============================================================
+   Approved Stitch Design System: Tectonic Atelier (Dark Mode)
+   Disciplined architectural atelier aesthetics strictly scoped
+   to .dark. Light mode remains untouched.
+   ============================================================ */
+
+.dark {
+  color-scheme: dark;
+  --color-canvas: #141311;
+  --color-surface-dim: #141311;
+  --color-surface: #141311;
+  --color-surface-bright: #3b3936;
+  --color-surface-container-lowest: #0f0e0c;
+  --color-surface-container-low: #1d1b19;
+  --color-surface-container: #211f1d;
+  --color-surface-container-high: #2b2a27;
+  --color-surface-container-highest: #363432;
+  --color-on-surface: #e6e2de;
+  --color-on-surface-variant: #e1c0b1;
+  --color-outline: #a88b7d;
+  --color-outline-variant: #39342f;
+  --color-primary: #ff7417;
+  --color-primary-container: #ff7417;
+  --color-on-primary: #552000;
+  --color-secondary: #ddb8ff;
+  --color-secondary-container: #7c03d3;
+  --color-tertiary: #ffb95f;
+  --color-tertiary-container: #db8c00;
+}
+
+.dark body {
+  background-color: #141311;
+  color: #e6e2de;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Headings in dark mode: Architectural editorial serif */
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  font-family: "Playfair Display", serif;
+  letter-spacing: -0.015em;
+  color: #f5f0e8;
+}
+
+/* Technical readouts, coordinates, inputs: Tabular Monospace */
+.dark .font-mono,
+.dark code,
+.dark pre,
+.dark input[type="number"],
+.dark .font-jetbrains {
+  font-family: "JetBrains Mono", monospace;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Custom Scrollbar in Dark Mode */
+.dark ::-webkit-scrollbar-track {
+  background: #141311;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2b2a27;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #39342f;
+}
+
+/* Selection in dark mode: Safety orange */
+.dark *::selection {
+  color: #ffffff;
+  background-color: #ff7417;
+}
+
+/* Atelier Cards in Dark Mode */
+.dark .card-warm {
+  background-color: #1d1b19;
+  border-color: #39342f;
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Badges in Dark Mode */
+.dark .badge-warm {
+  background-color: #211f1d;
+  color: #e6e2de;
+  border-color: #39342f;
+}
+
+/* Button Variants in Dark Mode */
+.dark .btn--primary {
+  background-color: #ff7417;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(255, 116, 23, 0.3);
+}
+.dark .btn--primary:hover {
+  background-color: #e06412;
+  box-shadow: 0 6px 20px rgba(255, 116, 23, 0.4);
+}
+.dark .btn--primary:active {
+  background-color: #c8550b;
+}
+
+.dark .btn--secondary {
+  background-color: #24211f;
+  color: #f5f0e8;
+  border-color: #39342f;
+}
+.dark .btn--secondary:hover {
+  background-color: #2c2825;
+  border-color: #746e65;
+}
+
+.dark .btn--outline {
+  background-color: transparent;
+  border-color: #39342f;
+  color: #e6e2de;
+}
+.dark .btn--outline:hover {
+  background-color: #211f1d;
+  border-color: #746e65;
+}
+
+.dark .btn--ghost {
+  color: #b4ada3;
+}
+.dark .btn--ghost:hover {
+  color: #f5f0e8;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Shell Headers and Footers in Dark Mode */
+.dark header {
+  background-color: rgba(29, 27, 25, 0.92);
+  border-bottom-color: #39342f;
+}
+
+.dark footer {
+  background-color: #141311;
+  border-top-color: #39342f;
+}
+
+/* Forms, Dropdowns and Inputs in Dark Mode */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #141311;
+  color: #f5f0e8;
+  border-color: #39342f;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #ff7417;
+  box-shadow: 0 0 0 1px #ff7417;
+  outline: none;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #746e65;
+}
+
+/* Shadows and Elevations in Dark Mode */
+.dark .shadow-warm {
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.45), 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+}
+
+.dark .shadow-warm-lg {
+  box-shadow: 0 20px 48px -6px rgba(0, 0, 0, 0.6);
 }
