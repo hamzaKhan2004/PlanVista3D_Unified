@@ -12,11 +12,15 @@ import {
   Layers,
   Share2,
   Check,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
-import Button from "../../components/ui/Button";
-import { useAuth } from "../../components/layout/AppLayout";
+import Button from "../../presentation/ui/Button";
+import Modal from "../../presentation/ui/Modal";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import { generate3DViews } from "../../lib/puter/ai.action";
-import { createProject, getProjectById } from "../../lib/puter/puter.action";
+import { createProject, getProjectById, deleteProject } from "../../lib/puter/puter.action";
 
 const ImageVisualizer = () => {
   const { id } = useParams();
@@ -28,6 +32,9 @@ const ImageVisualizer = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentImage, setCurrentImage] = useState(null);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const hasInitialGenerated = useRef(false);
 
@@ -82,6 +89,25 @@ const ImageVisualizer = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopiedShare(true);
     setTimeout(() => setCopiedShare(false), 2000);
+  };
+
+  const handleDeleteProject = async () => {
+    if (!id || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      setDeleteError("");
+
+      await deleteProject({ id });
+
+      navigate("/projects");
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      setDeleteError(
+        err.message || "Failed to delete project from storage. Please verify your connection."
+      );
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -200,6 +226,20 @@ const ImageVisualizer = () => {
             <Download className="w-3.5 h-3.5" />
             <span>Export Image</span>
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setDeleteError("");
+              setShowDeleteModal(true);
+            }}
+            disabled={isProcessing || isDeleting}
+            className="flex items-center gap-1.5 text-zinc-600 hover:text-red-600 hover:border-red-200"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Project</span>
+          </Button>
         </div>
       </div>
 
@@ -305,6 +345,69 @@ const ImageVisualizer = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => !isDeleting && setShowDeleteModal(false)}
+        title="Delete Project"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">
+                Are you sure you want to delete this project?
+              </p>
+              <p className="text-xs text-zinc-600 mt-1">
+                You are about to permanently delete{" "}
+                <span className="font-semibold text-zinc-900">
+                  "{project?.name || `Project ${id}`}"
+                </span>
+                . This will remove the source blueprint, rendered output, and project records from cloud storage.
+              </p>
+            </div>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+              {deleteError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDeleteProject}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Delete Project</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

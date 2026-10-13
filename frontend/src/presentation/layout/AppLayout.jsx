@@ -19,6 +19,14 @@ export const AuthContext = createContext({
 
 export const useAuth = () => useContext(AuthContext);
 
+export const ThemeContext = createContext({
+  theme: "light",
+  toggleTheme: () => {},
+  setTheme: () => {},
+});
+
+export const useTheme = () => useContext(ThemeContext);
+
 const DEFAULT_AUTH_STATE = {
   isSignedIn: false,
   userName: null,
@@ -27,6 +35,33 @@ const DEFAULT_AUTH_STATE = {
 
 const AppLayout = () => {
   const [authState, setAuthState] = useState(DEFAULT_AUTH_STATE);
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("planvista_theme");
+      return saved === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark");
+        document.documentElement.setAttribute("data-theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+      localStorage.setItem("planvista_theme", theme);
+    } catch (e) {
+      console.warn("Theme persistence error:", e);
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   const refreshAuth = async () => {
     try {
@@ -68,15 +103,23 @@ const AppLayout = () => {
   };
 
   return (
-    <AuthContext.Provider value={{ ...authState, refreshAuth, signIn, signOut }}>
-      <div className="min-h-screen bg-[#fdfbf7] text-[#1a1a1a] flex flex-col font-sans">
-        <Navbar authState={authState} onSignIn={signIn} onSignOut={signOut} />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        <Footer />
-      </div>
-    </AuthContext.Provider>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+      <AuthContext.Provider value={{ ...authState, refreshAuth, signIn, signOut }}>
+        <div className="min-h-screen bg-[#fdfbf7] dark:bg-[#121110] text-[#1a1a1a] dark:text-[#f4efe6] flex flex-col font-sans transition-colors duration-200">
+          <Navbar
+            authState={authState}
+            onSignIn={signIn}
+            onSignOut={signOut}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <Footer />
+        </div>
+      </AuthContext.Provider>
+    </ThemeContext.Provider>
   );
 };
 

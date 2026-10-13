@@ -17,6 +17,36 @@ import {
 import { Color, BoxGeometry, MeshStandardMaterial, Mesh, Vector3 } from "three";
 import { CAMERA_PRESETS } from "../../domain/cad/cadTypes";
 
+class ModelErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.warn("Failed to load 3D GLB model in viewport:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Html center>
+          <div className="flex flex-col items-center gap-2 p-5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl border border-red-200 dark:border-red-900/50 shadow-xl max-w-sm text-center">
+            <span className="text-xs font-bold text-red-600 dark:text-red-400">
+              Model Artifact Unavailable
+            </span>
+            <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
+              The generated .GLB geometry artifact was not found on the server. Please verify the backend outputs directory.
+            </span>
+          </div>
+        </Html>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const EditableModel = ({
   url,
   editingMode = true,
@@ -44,8 +74,8 @@ const EditableModel = ({
 
     allDynamicList.forEach((item) => {
       if (item.isNew && !dynamicMeshes.has(item.id)) {
-        const scale = item.scale || [2, 3, 0.2];
-        const geometry = new BoxGeometry(scale[0], scale[1], scale[2]);
+        // Create unit geometry; actual dimensions driven via mesh.scale for easy updates
+        const geometry = new BoxGeometry(1, 1, 1);
         const material = new MeshStandardMaterial({
           color: new Color(item.color || "#cccccc"),
           roughness: item.roughness !== undefined ? item.roughness : 0.7,
@@ -56,7 +86,9 @@ const EditableModel = ({
         const mesh = new Mesh(geometry, material);
 
         const pos = item.position || [0, 0, 0];
+        const scale = item.scale || [1, 1, 1];
         mesh.position.set(pos[0], pos[1], pos[2]);
+        mesh.scale.set(scale[0], scale[1], scale[2]);
         mesh.name = item.id;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -68,7 +100,8 @@ const EditableModel = ({
         const mesh = dynamicMeshes.get(item.id);
         if (mesh) {
           if (item.position) mesh.position.set(...item.position);
-          if (item.scale) mesh.scale.set(1, 1, 1); // Box geometry is already scaled, or use scale
+          // Apply scale directly to the mesh transform (geometry was created at unit size reference)
+          if (item.scale) mesh.scale.set(item.scale[0], item.scale[1], item.scale[2]);
           if (mesh.material) {
             mesh.material.color = new Color(item.color || "#cccccc");
             if (item.roughness !== undefined) mesh.material.roughness = item.roughness;
@@ -352,13 +385,15 @@ const CadViewport = forwardRef(
             }
           >
             {modelUrl && (
-              <EditableModel
-                url={modelUrl}
-                editorState={editorState}
-                dynamicObjects={dynamicObjects}
-                selectedObject={selectedObject}
-                onObjectSelect={onObjectSelect}
-              />
+              <ModelErrorBoundary>
+                <EditableModel
+                  url={modelUrl}
+                  editorState={editorState}
+                  dynamicObjects={dynamicObjects}
+                  selectedObject={selectedObject}
+                  onObjectSelect={onObjectSelect}
+                />
+              </ModelErrorBoundary>
             )}
             <Environment preset="apartment" />
           </Suspense>

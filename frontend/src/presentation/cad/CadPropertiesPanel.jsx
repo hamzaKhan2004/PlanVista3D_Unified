@@ -12,6 +12,7 @@ import {
 import { ARCHITECTURAL_SWATCHES } from "../../domain/cad/cadTypes";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
+import SourceBlueprintPanel from "./SourceBlueprintPanel";
 
 const CadPropertiesPanel = ({
   selectedObject,
@@ -21,17 +22,33 @@ const CadPropertiesPanel = ({
   onUpdateTransform,
   onToggleVisibility,
   onDeleteObject,
+  project,
+  taskId,
+  onToggleCompare,
+  isComparing,
+  onSwitchTo2DPlan,
 }) => {
   if (!selectedObject) {
     return (
-      <div className="p-6 text-center text-zinc-400 flex flex-col items-center justify-center h-full">
-        <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center mb-3">
-          <SlidersHorizontal className="w-6 h-6 text-zinc-400" />
+      <div className="p-4 flex flex-col justify-between h-full overflow-y-auto space-y-4">
+        <div className="p-4 text-center text-zinc-400 flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-800/40 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
+          <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-2">
+            <SlidersHorizontal className="w-5 h-5 text-zinc-400" />
+          </div>
+          <h4 className="font-serif font-bold text-zinc-800 dark:text-zinc-200 text-sm">Property Inspector</h4>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-[200px]">
+            Select an architectural element in the 3D viewport or hierarchy tree to customize properties.
+          </p>
         </div>
-        <h4 className="font-serif font-bold text-zinc-800 text-sm">Property Inspector</h4>
-        <p className="text-xs text-zinc-500 mt-1 max-w-[200px]">
-          Select an architectural element in the 3D viewport or hierarchy tree to customize properties.
-        </p>
+
+        {/* Source Blueprint Information */}
+        <SourceBlueprintPanel
+          project={project}
+          taskId={taskId}
+          onToggleCompare={onToggleCompare}
+          isComparing={isComparing}
+          onSwitchTo2DPlan={onSwitchTo2DPlan}
+        />
       </div>
     );
   }
@@ -284,6 +301,11 @@ const CadPropertiesPanel = ({
           </Button>
         </div>
       )}
+
+      {/* Source Blueprint Accordion/Card */}
+      <div className="p-4 border-t border-[#eae4dc] dark:border-zinc-800">
+        <SourceBlueprintPanel project={project} taskId={taskId} isCompact />
+      </div>
     </div>
   );
 };

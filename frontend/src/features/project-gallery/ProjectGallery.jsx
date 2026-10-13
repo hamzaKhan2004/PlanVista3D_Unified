@@ -1,15 +1,59 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderKanban, Sparkles, Box, Plus } from "lucide-react";
-import ProjectCard from "../../components/projects/ProjectCard";
-import Button from "../../components/ui/Button";
-import { getProjects } from "../../lib/puter/puter.action";
-import { getLocalModelProjects } from "../../lib/api/modelApi";
+import { FolderKanban, Sparkles, Box, Plus, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import ProjectCard from "../../presentation/projects/ProjectCard";
+import Button from "../../presentation/ui/Button";
+import Modal from "../../presentation/ui/Modal";
+import { getProjects, deleteProject } from "../../lib/puter/puter.action";
+import { getLocalModelProjects, deleteLocalModelProject } from "../../lib/api/modelApi";
 
 const ProjectGallery = () => {
   const [filter, setFilter] = useState("all"); // "all" | "image" | "model"
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [projectToDelete, setProjectToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleDeleteConfirm = async () => {
+    if (!projectToDelete || isDeleting) return;
+
+    try {
+      setIsDeleting(true);
+      setDeleteError("");
+
+      const isModel =
+        projectToDelete.type === "model" ||
+        projectToDelete.type === "model_3d" ||
+        projectToDelete.type === "dxf" ||
+        Boolean(projectToDelete.taskId) ||
+        Boolean(projectToDelete.model_file);
+
+      if (isModel) {
+        const idToDelete = projectToDelete.taskId || projectToDelete.id;
+        await deleteLocalModelProject(idToDelete);
+      } else {
+        await deleteProject({ id: projectToDelete.id });
+      }
+
+      // Remove from state only after confirmed persistence deletion
+      setProjects((prev) =>
+        prev.filter(
+          (p) =>
+            p.id !== projectToDelete.id &&
+            (!projectToDelete.taskId || p.taskId !== projectToDelete.taskId)
+        )
+      );
+      setProjectToDelete(null);
+    } catch (err) {
+      console.error("Deletion failed:", err);
+      setDeleteError(
+        err.message || "Failed to delete project from storage. Please verify your connection."
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAllProjects = async () => {
@@ -113,7 +157,11 @@ const ProjectGallery = () => {
       ) : filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id || project.taskId} project={project} />
+            <ProjectCard
+              key={project.id || project.taskId}
+              project={project}
+              onDelete={setProjectToDelete}
+            />
           ))}
         </div>
       ) : (
@@ -143,6 +191,73 @@ const ProjectGallery = () => {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal for Project Deletion */}
+      <Modal
+        isOpen={!!projectToDelete}
+        onClose={() => !isDeleting && setProjectToDelete(null)}
+        title="Delete Project"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">
+                Are you sure you want to delete this project?
+              </p>
+              <p className="text-xs text-zinc-600 mt-1">
+                You are about to permanently delete{" "}
+                <span className="font-semibold text-zinc-900">
+                  "{projectToDelete?.name || `Project ${projectToDelete?.id}`}"
+                </span>
+                . This will permanently remove all associated{" "}
+                {projectToDelete?.type === "model" || projectToDelete?.taskId
+                  ? "3D CAD geometry, files, and project data"
+                  : "rendered imagery and cloud storage data"}
+                . This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          {deleteError && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs">
+              {deleteError}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setProjectToDelete(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Delete Project</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

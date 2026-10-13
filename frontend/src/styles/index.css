@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: #fdfbf7;
   --color-foreground: #1a1a1a;
@@ -120,4 +122,109 @@
 
 .animate-pulse-subtle {
   animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ============================================================
+   Dark Mode Styles & Theme Overrides (Task 1)
+   Preserves Roomify warm orange palette while establishing
+   rich, accessible dark surfaces strictly scoped to .dark.
+   ============================================================ */
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #121110;
+  color: #f4efe6;
+}
+
+/* Custom Scrollbar for Dark Mode */
+.dark ::-webkit-scrollbar-track {
+  background: #121110;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2e2a25;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #423d35;
+}
+
+/* Selection in dark mode */
+.dark *::selection {
+  color: #ffffff;
+  background-color: #ea580c;
+}
+
+/* Components in Dark Mode */
+.dark .card-warm {
+  background-color: #1a1918;
+  border-color: #2e2a25;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+}
+
+.dark .badge-warm {
+  background-color: #24221f;
+  color: #f4efe6;
+  border-color: #38342f;
+}
+
+.dark .btn--secondary {
+  background-color: #201e1c;
+  color: #f4efe6;
+  border-color: #332f29;
+}
+.dark .btn--secondary:hover {
+  background-color: #282622;
+}
+
+.dark .btn--outline {
+  border-color: #3a352e;
+  color: #f4efe6;
+}
+.dark .btn--outline:hover {
+  background-color: #262420;
+}
+
+.dark .btn--ghost {
+  color: #d4cec4;
+}
+.dark .btn--ghost:hover {
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Navigation & Header / Footer in Dark Mode */
+.dark header {
+  background-color: rgba(18, 17, 16, 0.92);
+  border-bottom-color: #2d2925;
+}
+
+.dark footer {
+  background-color: #121110;
+  border-top-color: #2d2925;
+}
+
+/* Forms and Inputs in Dark Mode */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #201e1b;
+  color: #f4efe6;
+  border-color: #38342f;
+}
+
+.dark input::placeholder {
+  color: #787267;
+}
+
+/* Shadows in dark mode */
+.dark .shadow-warm {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+}
+
+.dark .shadow-warm-lg {
+  box-shadow: 0 10px 30px -4px rgba(0, 0, 0, 0.55);
 }

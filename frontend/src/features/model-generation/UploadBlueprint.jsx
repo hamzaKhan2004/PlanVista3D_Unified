@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UploadCloud, CheckCircle2, Box, Layers, AlertCircle, ArrowRight } from "lucide-react";
-import Button from "../../components/ui/Button";
+import Button from "../../presentation/ui/Button";
 import { uploadBlueprint, saveLocalModelProject } from "../../lib/api/modelApi";
 
 const UploadBlueprint = () => {
@@ -46,6 +46,18 @@ const UploadBlueprint = () => {
       setUploading(true);
       setError("");
 
+      let sourceThumbnail = null;
+      if (!isDXF && file) {
+        try {
+          sourceThumbnail = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+          });
+        } catch (_) {}
+      }
+
       const res = await uploadBlueprint({
         file,
         floors,
@@ -64,6 +76,8 @@ const UploadBlueprint = () => {
         wallHeight: Number(wallHeight),
         wallThickness: Number(wallThickness),
         timestamp: Date.now(),
+        sourceThumbnail,
+        sourceDownloadUrl: `/api/source/${res.task_id}`,
         status: "processing",
       });
 

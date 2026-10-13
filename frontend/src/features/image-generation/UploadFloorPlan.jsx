@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Image as ImageIcon, UploadCloud } from "lucide-react";
-import { useAuth } from "../../components/layout/AppLayout";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import {
   PROGRESS_INCREMENT,
   REDIRECT_DELAY_MS,

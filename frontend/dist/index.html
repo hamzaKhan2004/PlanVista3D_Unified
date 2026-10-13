@@ -11,8 +11,27 @@
       href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/assets/index-g8fgAWPY.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Cs56Y3jc.css">
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem("planvista_theme");
+          var theme = saved === "dark" ? "dark" : "light";
+          if (theme === "dark") {
+            document.documentElement.classList.add("dark");
+            document.documentElement.setAttribute("data-theme", "dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+            document.documentElement.setAttribute("data-theme", "light");
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-DreEMGDd.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-CDpHYdTo.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-vendor-Bl9iziBr.js">
+    <link rel="modulepreload" crossorigin href="/assets/three-vendor-CNWq78UG.js">
+    <link rel="modulepreload" crossorigin href="/assets/r3f-vendor-AfL2yGJX.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Bf12zo43.css">
   </head>
   <body class="bg-[#fdfbf7] text-[#1a1a1a] font-sans antialiased selection:bg-orange-500 selection:text-white">
     <div id="root"></div>

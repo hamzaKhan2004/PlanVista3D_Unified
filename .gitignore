@@ -48,3 +48,7 @@ yarn-error.log*
 
 # Samples blueprints
 samples/
+
+# Uploads and Output
+backend/model-generation/outputs
+backend/model-generation/uploads

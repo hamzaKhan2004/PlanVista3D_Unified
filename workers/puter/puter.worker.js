@@ -116,3 +116,45 @@ router.get('/api/projects/get', async ({ request, user }) => {
         });
     }
 });
+
+const handleDeleteProject = async ({ request, user }) => {
+    try {
+        const userPuter = user?.puter;
+        if (!userPuter) return jsonError(401, 'Authentication failed');
+
+        const userId = await getUserId(userPuter);
+        if (!userId) return jsonError(401, 'Authentication failed');
+
+        let id = null;
+        try {
+            const body = await request.json();
+            id = body?.id;
+        } catch (_) {}
+
+        if (!id) {
+            const url = new URL(request.url);
+            id = url.searchParams.get('id');
+        }
+
+        if (!id) return jsonError(400, 'Project ID is required');
+
+        const key = `${PROJECT_PREFIX}${id}`;
+        if (typeof userPuter.kv.del === 'function') {
+            await userPuter.kv.del(key);
+        } else if (typeof userPuter.kv.delete === 'function') {
+            await userPuter.kv.delete(key);
+        } else {
+            await userPuter.kv.set(key, null);
+        }
+
+        return { deleted: true, id };
+    } catch (e) {
+        return jsonError(500, 'Failed to delete project', {
+            message: e.message || 'Unknown error'
+        });
+    }
+};
+
+router.post('/api/projects/delete', handleDeleteProject);
+router.delete('/api/projects/delete', handleDeleteProject);
+

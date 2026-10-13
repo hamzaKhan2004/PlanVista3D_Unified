@@ -24,13 +24,13 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-lg" }) => {
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} bg-[#fdfbf7] rounded-2xl shadow-2xl border border-[#eae4dc] overflow-hidden z-10 transition-all`}
+        className={`relative w-full ${maxWidth} bg-[#fdfbf7] dark:bg-[#1a1918] rounded-2xl shadow-2xl border border-[#eae4dc] dark:border-zinc-800 overflow-hidden z-10 transition-all`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#eae4dc]">
-          <h3 className="font-serif text-lg font-bold text-zinc-900">{title}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#eae4dc] dark:border-zinc-800">
+          <h3 className="font-serif text-lg font-bold text-zinc-900 dark:text-zinc-100">{title}</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 transition-colors"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

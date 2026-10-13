@@ -16,6 +16,7 @@ import {
   Save,
   Compass,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import Button from "../ui/Button";
 import { CAMERA_PRESETS, TRANSFORM_MODES } from "../../domain/cad/cadTypes";
@@ -37,6 +38,7 @@ const CadToolbar = ({
   onTakeScreenshot,
   onSaveProject,
   onExportGlb,
+  onDeleteProject,
   isSaving = false,
 }) => {
   return (
@@ -252,6 +254,18 @@ const CadToolbar = ({
           <Download className="w-3.5 h-3.5" />
           <span>Export GLB</span>
         </Button>
+
+        {onDeleteProject && (
+          <button
+            type="button"
+            onClick={onDeleteProject}
+            title="Delete this CAD project"
+            aria-label="Delete this CAD project"
+            className="p-2 rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer border border-transparent hover:border-red-200"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </div>
   );

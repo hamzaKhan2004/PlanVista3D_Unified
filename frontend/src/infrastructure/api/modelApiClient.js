@@ -45,6 +45,16 @@ export const getModelDownloadUrl = (filename) => {
 };
 
 /**
+ * Returns the download URL for the original source blueprint file.
+ * @param {string} taskId
+ * @returns {string}
+ */
+export const getSourceDownloadUrl = (taskId) => {
+  if (!taskId) return "";
+  return `${API_BASE_URL}/source/${taskId}`;
+};
+
+/**
  * Fetches the raw binary blob for a model file.
  * @param {string} filename
  * @returns {Promise<Blob>}
@@ -63,4 +73,21 @@ export const fetchModelBlob = async (filename) => {
 export const checkBackendHealth = async () => {
   const response = await axios.get(`${API_BASE_URL}/health`);
   return response.data;
+};
+
+/**
+ * Deletes a backend task and its exclusively owned files.
+ * @param {string} taskId
+ * @returns {Promise<{ success: boolean, message?: string }>}
+ */
+export const deleteModelBackendTask = async (taskId) => {
+  if (!taskId) return { success: true };
+  try {
+    const response = await axios.delete(`${API_BASE_URL}/project/${taskId}`);
+    return response.data;
+  } catch (err) {
+    console.warn(`Backend project deletion failed for task ${taskId}:`, err);
+    // Don't crash if task had no backend files, but rethrow if server error
+    return { success: false, error: err.message };
+  }
 };

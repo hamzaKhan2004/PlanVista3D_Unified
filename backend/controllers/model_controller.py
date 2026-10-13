@@ -1,3 +1,4 @@
+import time
 import os
 import uuid
 from flask import request, jsonify, send_from_directory
@@ -34,6 +35,21 @@ class ModelController:
 
         file.save(input_path)
 
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        source_info = {
+            "filename": filename,
+            "type": ext,
+            "has_source": True,
+            "download_url": f"/api/source/{task_id}",
+            "uploaded_at": int(time.time() * 1000),
+        }
+
+        task_repository.set(task_id, {
+            "status": "queued",
+            "progress": 0,
+            "source_file": source_info,
+        })
+
         dispatch_generation_task(
             task_id=task_id,
             input_path=input_path,
@@ -63,6 +79,33 @@ class ModelController:
             )
         except FileNotFoundError:
             return jsonify({"error": "File not found"}), 404
+
+    @staticmethod
+    def download_source(task_id: str):
+        """Streams the original uploaded blueprint file (DXF or Image) without exposing server paths."""
+        if not os.path.exists(UPLOAD_FOLDER):
+            return jsonify({"error": "Source file not found"}), 404
+
+        for fname in os.listdir(UPLOAD_FOLDER):
+            if fname.startswith(f"{task_id}_"):
+                orig_filename = fname[len(task_id) + 1:]
+                return send_from_directory(
+                    UPLOAD_FOLDER,
+                    fname,
+                    download_name=orig_filename,
+                    as_attachment=False,
+                )
+
+        return jsonify({"error": "Source file not found"}), 404
+
+    @staticmethod
+    def delete_project(task_id: str):
+        """Deletes task metadata and exclusively owned files for a 3D model project."""
+        try:
+            task_repository.delete(task_id)
+            return jsonify({"success": True, "message": f"Project {task_id} deleted"}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
     @staticmethod
     def health_check():

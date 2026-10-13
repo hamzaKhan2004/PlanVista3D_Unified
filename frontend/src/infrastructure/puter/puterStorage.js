@@ -136,3 +136,45 @@ export const getProjectById = async ({ id }) => {
     return null;
   }
 };
+
+export const deleteProject = async ({ id }) => {
+  if (!id) throw new Error("Project ID is required for deletion");
+
+  if (PUTER_WORKER_URL) {
+    try {
+      const response = await puter.workers.exec(
+        `${PUTER_WORKER_URL}/api/projects/delete`,
+        {
+          method: "POST",
+          body: JSON.stringify({ id }),
+        }
+      );
+
+      if (response.ok) {
+        return true;
+      }
+      console.warn("Worker delete call did not return 200, trying direct KV fallback:", await response.text());
+    } catch (workerErr) {
+      console.warn("Worker delete exec error, trying direct KV fallback:", workerErr);
+    }
+  }
+
+  try {
+    const key = `planVista3D_project_${id}`;
+    if (puter?.kv?.del) {
+      await puter.kv.del(key);
+      return true;
+    } else if (puter?.kv?.delete) {
+      await puter.kv.delete(key);
+      return true;
+    } else if (puter?.kv?.set) {
+      await puter.kv.set(key, null);
+      return true;
+    }
+  } catch (kvErr) {
+    console.error("Direct Puter KV deletion failed:", kvErr);
+    throw kvErr;
+  }
+
+  throw new Error("Unable to delete project: Puter storage is not accessible.");
+};

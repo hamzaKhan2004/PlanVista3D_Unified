@@ -1,9 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Clock, ArrowUpRight, Sparkles, Box, Layers } from "lucide-react";
+import { Clock, ArrowUpRight, Sparkles, Box, Layers, Trash2 } from "lucide-react";
 import Badge from "../ui/Badge";
 
-const ProjectCard = ({ project }) => {
+const ProjectCard = ({ project, onDelete }) => {
   const navigate = useNavigate();
 
   const isModel =
@@ -22,7 +22,7 @@ const ProjectCard = ({ project }) => {
   return (
     <div
       onClick={() => navigate(targetRoute)}
-      className="group bg-white border border-[#eae4dc] rounded-2xl overflow-hidden shadow-warm hover:shadow-warm-lg hover:border-orange-300 transition-all cursor-pointer flex flex-col"
+      className="group bg-white border border-[#eae4dc] rounded-2xl overflow-hidden shadow-warm hover:shadow-warm-lg hover:border-orange-300 transition-all cursor-pointer flex flex-col relative"
     >
       {/* Thumbnail */}
       <div className="relative aspect-4/3 w-full bg-[#f4eee6] overflow-hidden">
@@ -60,6 +60,22 @@ const ProjectCard = ({ project }) => {
             )}
           </span>
         </div>
+
+        {/* Delete Action for both 3D CAD Models and AI Render Projects */}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(project);
+            }}
+            aria-label={`Delete ${project.name || "project"}`}
+            title="Delete project"
+            className="absolute top-3 right-3 p-2 rounded-xl bg-white/90 hover:bg-red-50 text-zinc-500 hover:text-red-600 backdrop-blur-md shadow-xs border border-zinc-200/80 transition-all cursor-pointer opacity-90 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 hover:opacity-100 group/btn z-10"
+          >
+            <Trash2 className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+          </button>
+        )}
       </div>
 
       {/* Card Content */}

@@ -39,6 +39,13 @@ export const getModelDownloadUrl = (modelFile) => {
 };
 
 /**
+ * Returns the download URL for the original source blueprint file.
+ */
+export const getSourceDownloadUrl = (taskId) => {
+  return `/api/source/${taskId}`;
+};
+
+/**
  * Performs a health check on the model generation service.
  */
 export const checkModelServiceHealth = async () => {
@@ -77,4 +84,26 @@ export const getLocalModelProjects = () => {
 export const getLocalModelProjectById = (taskId) => {
   const all = getLocalModelProjects();
   return all.find((p) => p.taskId === taskId || p.id === taskId) || null;
+};
+
+export const deleteLocalModelProject = async (taskId) => {
+  try {
+    const existing = getLocalModelProjects();
+    const target = existing.find((p) => p.id === taskId || p.taskId === taskId);
+    const idToDelete = target?.taskId || taskId;
+
+    // Call backend delete
+    try {
+      await axios.delete(`/api/project/${idToDelete}`);
+    } catch (e) {
+      console.warn("Backend deletion non-critical error:", e);
+    }
+
+    const filtered = existing.filter((p) => p.id !== taskId && p.taskId !== taskId);
+    localStorage.setItem(MODEL_PROJECTS_STORAGE_KEY, JSON.stringify(filtered));
+    return true;
+  } catch (error) {
+    console.error("Failed to delete local model project:", error);
+    throw error;
+  }
 };
