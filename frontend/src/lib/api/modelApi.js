@@ -1,7 +1,35 @@
 import axios from "axios";
+import puter from "@heyputer/puter.js";
 import { API_BASE_URL } from "../../infrastructure/config/constants";
 
 const MODEL_PROJECTS_STORAGE_KEY = "planvista3d_local_model_projects";
+
+/**
+ * Safely extracts the current Puter session authentication token if available.
+ * Never logs or persists the token to localStorage.
+ */
+export const getPuterAuthToken = () => {
+  try {
+    if (typeof puter === "undefined" || !puter) return null;
+    const token = puter.authToken || puter.auth?.token || null;
+    return typeof token === "string" && token.trim().length > 0 ? token.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Generates authorization headers with Puter bearer token when available.
+ * Preserves custom headers and allows Axios to set multipart boundaries automatically.
+ */
+export const getAuthHeaders = (customHeaders = {}) => {
+  const token = getPuterAuthToken();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+  return {
+    ...authHeader,
+    ...customHeaders,
+  };
+};
 
 /**
  * Uploads a blueprint file (DXF or Image) to the Flask processing backend.
@@ -32,7 +60,7 @@ export const uploadBlueprint = async ({
   }
 
   const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+    headers: getAuthHeaders(),
   });
 
   return response.data; // { task_id, message, pipeline }
@@ -58,7 +86,7 @@ export const extractVectorGeometry = async ({
   formData.append("target_size", Number(targetSize));
 
   const response = await axios.post(`${API_BASE_URL}/vector-extract`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+    headers: getAuthHeaders(),
   });
 
   return response.data;
@@ -68,7 +96,9 @@ export const extractVectorGeometry = async ({
  * Polls the job status for a given task ID.
  */
 export const checkTaskStatus = async (taskId) => {
-  const response = await axios.get(`${API_BASE_URL}/status/${taskId}`);
+  const response = await axios.get(`${API_BASE_URL}/status/${taskId}`, {
+    headers: getAuthHeaders(),
+  });
   return response.data; // { status, progress, model_file, analysis, error }
 };
 
@@ -77,6 +107,22 @@ export const checkTaskStatus = async (taskId) => {
  */
 export const getModelDownloadUrl = (modelFile) => {
   return `${API_BASE_URL}/download/${modelFile}`;
+};
+
+/**
+ * Retrieves a secure, short-lived presigned download URL for a 3D model.
+ * Falls back to local endpoint URL if S3 is unconfigured.
+ */
+export const getSecureModelUrl = async (taskId) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/project/${taskId}/model-url`, {
+      headers: getAuthHeaders(),
+    });
+    return response.data; // { success: true, url, storage_provider, expires_in, filename }
+  } catch (error) {
+    console.warn("Secure model URL retrieval notice:", error.response?.data?.error || error.message);
+    return null;
+  }
 };
 
 /**
@@ -95,6 +141,44 @@ export const checkModelServiceHealth = async () => {
     return response.data;
   } catch (error) {
     return { status: "unreachable", error: error.message };
+  }
+};
+
+/**
+ * Stores newly generated 2D preview/render images in ImageKit and records metadata in MongoDB.
+ */
+export const storeRenderedImage = async ({ image, projectId, name }) => {
+  try {
+    const response = await axios.post(
+      `${API_BASE_URL}/images/store-render`,
+      {
+        image,
+        project_id: projectId,
+        name,
+      },
+      {
+        headers: getAuthHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    return response.data; // { success: true, url, file_id, thumbnail_url, asset }
+  } catch (error) {
+    console.warn("ImageKit rendered image storage notice:", error.response?.data?.error || error.message);
+    return null;
+  }
+};
+
+/**
+ * Retrieves ImageKit client upload authorization parameters.
+ */
+export const getImageKitAuth = async () => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/images/auth`, {
+      headers: getAuthHeaders(),
+    });
+    return response.data;
+  } catch (error) {
+    console.warn("ImageKit auth fetch notice:", error.response?.data?.error || error.message);
+    return null;
   }
 };
 
@@ -133,11 +217,13 @@ export const deleteLocalModelProject = async (taskId) => {
     const target = existing.find((p) => p.id === taskId || p.taskId === taskId);
     const idToDelete = target?.taskId || taskId;
 
-    // Call backend delete
+    // Call backend delete with verified auth headers
     try {
-      await axios.delete(`${API_BASE_URL}/project/${idToDelete}`);
+      await axios.delete(`${API_BASE_URL}/project/${idToDelete}`, {
+        headers: getAuthHeaders(),
+      });
     } catch (e) {
-      console.warn("Backend deletion non-critical error:", e);
+      console.warn("Backend deletion notice:", e);
     }
 
     const filtered = existing.filter((p) => p.id !== taskId && p.taskId !== taskId);

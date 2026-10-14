@@ -20,7 +20,12 @@ if hasattr(sys.stderr, "reconfigure"):
 
 from flask import Flask
 from flask_cors import CORS
-from backend.config.config import ALLOWED_ORIGINS, PORT, resolve_blender_path
+from backend.config.config import (
+    ALLOWED_ORIGINS,
+    PORT,
+    resolve_blender_path,
+    validate_production_config,
+)
 from backend.routes.api_routes import api_bp
 from backend.services.contour_service import create_analysis_from_blueprint
 from backend.services.dxf_service import create_analysis_from_dxf
@@ -31,6 +36,7 @@ from backend.repositories.task_repository import task_repository
 processing_status = task_repository.raw_dict
 
 def create_app():
+    validate_production_config()
     application = Flask(__name__)
     CORS(application, origins=ALLOWED_ORIGINS)
     application.register_blueprint(api_bp)

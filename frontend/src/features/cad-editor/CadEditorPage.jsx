@@ -30,6 +30,7 @@ import {
   checkTaskStatus,
   getModelDownloadUrl,
 } from "../../infrastructure/api/modelApiClient";
+import { getSecureModelUrl } from "../../lib/api/modelApi";
 import {
   loadModelProjects,
   getModelProjectById,
@@ -251,6 +252,17 @@ const CadEditorPage = () => {
             sourceDownloadUrl: localProj?.sourceDownloadUrl || statusData?.source_file?.download_url || `/api/source/${activeTaskId}`,
             source_file: statusData?.source_file || localProj?.source_file,
           };
+
+          // Retrieve secure presigned S3 URL or authorized model URL
+          try {
+            const secureRes = await getSecureModelUrl(activeTaskId);
+            if (secureRes?.url) {
+              updatedProject.model_url = secureRes.url;
+            }
+          } catch (secErr) {
+            console.warn("Notice checking secure model URL:", secErr);
+          }
+
           saveModelProject(updatedProject);
           setModelProject(updatedProject);
         } else if (statusData.status === "error") {
@@ -282,9 +294,9 @@ const CadEditorPage = () => {
     };
   }, [activeTaskId]);
 
-  // Model file URL
+  // Model file URL (prefers secure S3 presigned URL when available, with local fallback)
   const modelFile = modelProject?.model_file || (activeTaskId ? `${activeTaskId}_model.glb` : null);
-  const modelUrl = modelFile ? getModelDownloadUrl(modelFile) : null;
+  const modelUrl = modelProject?.model_url || (modelFile ? getModelDownloadUrl(modelFile) : null);
 
   // Find object data in state
   const getSelectedObjectData = () => {
