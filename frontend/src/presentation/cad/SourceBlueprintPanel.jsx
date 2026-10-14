@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   X,
   SplitSquareVertical,
+  Sparkles,
 } from "lucide-react";
 import Modal from "../ui/Modal";
 import Button from "../ui/Button";
@@ -57,6 +58,9 @@ const SourceBlueprintPanel = ({
     "unknown"
   ).toLowerCase();
 
+  const isVectorAssisted =
+    project?.pipeline === "vector_assisted" ||
+    project?.analysis?.pipeline === "vector_assisted";
   const isDxf = fileType === "dxf";
   const isImage = ["png", "jpg", "jpeg", "webp"].includes(fileType);
 
@@ -93,7 +97,11 @@ const SourceBlueprintPanel = ({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#eae4dc] dark:border-[#39342f] pb-2.5">
         <div className="flex items-center gap-2">
-          {isDxf ? (
+          {isVectorAssisted ? (
+            <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center">
+              <Sparkles className="w-4 h-4" />
+            </div>
+          ) : isDxf ? (
             <div className="w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center">
               <FileCode className="w-4 h-4" />
             </div>
@@ -119,14 +127,18 @@ const SourceBlueprintPanel = ({
         {/* Format Badge */}
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide ${
-            isDxf
+            isVectorAssisted
+              ? "bg-orange-100 text-orange-700 dark:bg-[#ff7417]/20 dark:text-[#ff9d54] border border-orange-200 dark:border-orange-900/60"
+              : isDxf
               ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
               : isImage
               ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
               : "bg-zinc-100 text-zinc-700 dark:bg-[#2b2a27] dark:text-[#b4ada3] border border-zinc-200 dark:border-[#39342f]"
           }`}
         >
-          {isDxf
+          {isVectorAssisted
+            ? "Vector-Assisted 3D"
+            : isDxf
             ? "AutoCAD DXF"
             : isImage
             ? `${fileType.toUpperCase()} Image`

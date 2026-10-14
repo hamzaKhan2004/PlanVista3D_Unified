@@ -1,15 +1,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, CheckCircle2, Box, Layers, AlertCircle, ArrowRight } from "lucide-react";
+import { UploadCloud, CheckCircle2, Box, Layers, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import Button from "../../presentation/ui/Button";
-import { uploadBlueprint, saveLocalModelProject } from "../../lib/api/modelApi";
+import { uploadBlueprint, extractVectorGeometry, saveLocalModelProject } from "../../lib/api/modelApi";
+import VectorGeometryPreviewModal from "../../presentation/cad/VectorGeometryPreviewModal";
 
 const UploadBlueprint = () => {
   const [file, setFile] = useState(null);
   const [floors, setFloors] = useState("3");
   const [wallHeight, setWallHeight] = useState("3.2");
   const [wallThickness, setWallThickness] = useState("0.25");
+  const [targetSize, setTargetSize] = useState("28.0");
   const [isDXF, setIsDXF] = useState(false);
+  const [isVectorAssisted, setIsVectorAssisted] = useState(true);
+  const [sourceThumbnail, setSourceThumbnail] = useState(null);
+  const [vectorPreviewData, setVectorPreviewData] = useState(null);
+  const [isVectorModalOpen, setIsVectorModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -19,9 +25,99 @@ const UploadBlueprint = () => {
     const selected = event.target.files[0];
     if (!selected) return;
     const ext = selected.name.split(".").pop().toLowerCase();
-    setIsDXF(ext === "dxf");
+    const isDxfFile = ext === "dxf";
+    setIsDXF(isDxfFile);
     setFile(selected);
     setError("");
+    setVectorPreviewData(null);
+
+    if (!isDxfFile) {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => setSourceThumbnail(e.target.result);
+        reader.readAsDataURL(selected);
+      } catch (_) {}
+    } else {
+      setSourceThumbnail(null);
+    }
+  };
+
+  const handleExtractVectorPreview = async () => {
+    if (!file) {
+      setError("Please select a floor plan image (PNG, JPG)");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError("");
+
+      const data = await extractVectorGeometry({
+        file,
+        wallHeight,
+        wallThickness,
+        targetSize,
+      });
+
+      setVectorPreviewData(data);
+      setIsVectorModalOpen(true);
+    } catch (err) {
+      console.error("Vector extraction failed:", err);
+      setError(
+        err.response?.data?.error ||
+          "Could not extract clean wall geometry from the image. Please verify wall line contrast or toggle standard generation."
+      );
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleConfirmVectorGenerate = async ({ vectorData, targetSize: calScale, wallHeight: calHeight, wallThickness: calThick }) => {
+    try {
+      setUploading(true);
+      setError("");
+
+      const res = await uploadBlueprint({
+        file,
+        wallHeight: calHeight,
+        wallThickness: calThick,
+        targetSize: calScale,
+        vectorAssisted: true,
+        vectorData,
+      });
+
+      saveLocalModelProject({
+        id: res.task_id,
+        taskId: res.task_id,
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        fileName: file.name,
+        type: "image",
+        pipeline: "vector_assisted",
+        floors: 1,
+        wallHeight: Number(calHeight),
+        wallThickness: Number(calThick),
+        targetSize: Number(calScale),
+        timestamp: Date.now(),
+        sourceThumbnail,
+        sourceDownloadUrl: `/api/source/${res.task_id}`,
+        status: "processing",
+        analysis: {
+          pipeline: "vector_assisted",
+          walls_detected: vectorData?.wall_count || vectorData?.line_segments?.length || 0,
+        },
+      });
+
+      setIsVectorModalOpen(false);
+      navigate(`/model-viewer/${res.task_id}`);
+    } catch (err) {
+      console.error("Vector generation failed:", err);
+      setError(
+        err.response?.data?.error ||
+          "Failed to initiate 3D model generation. Please check backend service status."
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleUpload = async () => {
@@ -29,6 +125,13 @@ const UploadBlueprint = () => {
       setError("Please select a blueprint file (DXF, PNG, or JPG)");
       return;
     }
+
+    // When vector-assisted generation is enabled for raster images, show the 2D preview & calibration first
+    if (!isDXF && isVectorAssisted) {
+      await handleExtractVectorPreview();
+      return;
+    }
+
     if (isDXF && (!floors || Number(floors) < 1)) {
       setError("Please enter a valid number of floors (minimum 1)");
       return;
@@ -46,10 +149,10 @@ const UploadBlueprint = () => {
       setUploading(true);
       setError("");
 
-      let sourceThumbnail = null;
-      if (!isDXF && file) {
+      let thumbnail = sourceThumbnail;
+      if (!isDXF && file && !thumbnail) {
         try {
-          sourceThumbnail = await new Promise((resolve) => {
+          thumbnail = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
             reader.onerror = () => resolve(null);
@@ -76,7 +179,7 @@ const UploadBlueprint = () => {
         wallHeight: Number(wallHeight),
         wallThickness: Number(wallThickness),
         timestamp: Date.now(),
-        sourceThumbnail,
+        sourceThumbnail: thumbnail,
         sourceDownloadUrl: `/api/source/${res.task_id}`,
         status: "processing",
       });
@@ -156,6 +259,46 @@ const UploadBlueprint = () => {
         </label>
       </div>
 
+      {/* Vector-Assisted Mode Toggle (For Images only) */}
+      {!isDXF && (
+        <div className="mb-6 p-4 rounded-xl border border-orange-200 dark:border-orange-900/40 bg-orange-50/40 dark:bg-[#1f1b16] transition-all">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] mt-0.5">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor="vector-assisted-toggle"
+                    className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8] cursor-pointer"
+                  >
+                    Vector-Assisted Generation
+                  </label>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-100 dark:bg-[#ff7417]/20 text-orange-700 dark:text-[#ff9d54]">
+                    Enhanced
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1 leading-relaxed">
+                  Cleans floor plan noise, extracts clean 2D wall vectors, eliminates parallel duplicate edges, and provides an interactive 2D geometry preview before 3D extrusion.
+                </p>
+              </div>
+            </div>
+
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+              <input
+                id="vector-assisted-toggle"
+                type="checkbox"
+                checked={isVectorAssisted}
+                onChange={(e) => setIsVectorAssisted(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-zinc-300 peer-focus:outline-none rounded-full peer dark:bg-[#2d2925] peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-zinc-600 peer-checked:bg-[#ff7417]"></div>
+            </label>
+          </div>
+        </div>
+      )}
+
       {/* Parameter Settings */}
       <div className="space-y-4 mb-6 bg-[#fdfbf7] dark:bg-[#141311] p-5 rounded-xl border border-[#eae4dc] dark:border-[#39342f]">
         <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-[#a88b7d]">
@@ -163,7 +306,7 @@ const UploadBlueprint = () => {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {isDXF && (
+          {isDXF ? (
             <div>
               <label className="block text-xs font-semibold text-zinc-700 dark:text-[#e6e2de] mb-1">
                 Floors
@@ -177,9 +320,25 @@ const UploadBlueprint = () => {
                 className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1d1b19] border border-zinc-200 dark:border-[#39342f] text-zinc-900 dark:text-[#f5f0e8] font-mono rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none"
               />
             </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-700 dark:text-[#e6e2de] mb-1">
+                Plan Scale (m)
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="5"
+                max="200"
+                value={targetSize}
+                onChange={(e) => setTargetSize(e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-white dark:bg-[#1d1b19] border border-zinc-200 dark:border-[#39342f] text-zinc-900 dark:text-[#f5f0e8] font-mono rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                placeholder="28.0"
+              />
+            </div>
           )}
 
-          <div className={isDXF ? "" : "sm:col-span-2"}>
+          <div>
             <label className="block text-xs font-semibold text-zinc-700 dark:text-[#e6e2de] mb-1">
               Wall Height (m)
             </label>
@@ -231,15 +390,36 @@ const UploadBlueprint = () => {
         {uploading ? (
           <>
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>Queuing Generation Task...</span>
+            <span>
+              {!isDXF && isVectorAssisted
+                ? "Extracting Vector Geometry..."
+                : "Queuing Generation Task..."}
+            </span>
           </>
         ) : (
           <>
-            <span>Generate 3D Model</span>
+            <span>
+              {!isDXF && isVectorAssisted
+                ? "Preview Vector Geometry"
+                : "Generate 3D Model"}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </>
         )}
       </Button>
+
+      {/* 2D Vector Geometry Preview & Calibration Modal */}
+      <VectorGeometryPreviewModal
+        isOpen={isVectorModalOpen}
+        onClose={() => setIsVectorModalOpen(false)}
+        onConfirm={handleConfirmVectorGenerate}
+        vectorData={vectorPreviewData}
+        sourceImage={sourceThumbnail}
+        initialTargetSize={targetSize}
+        initialWallHeight={wallHeight}
+        initialWallThickness={wallThickness}
+        isLoading={uploading}
+      />
     </div>
   );
 };

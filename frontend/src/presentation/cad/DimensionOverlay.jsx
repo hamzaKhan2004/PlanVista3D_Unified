@@ -18,6 +18,10 @@ const DimensionOverlay = ({
   const scale = objectData?.scale || [1, 1, 1];
   const position = objectData?.position || [0, 0, 0];
   const color = objectData?.color;
+  const dims = objectData?.dimensions || {};
+  const length = dims.length !== undefined ? dims.length : scale[0];
+  const height = dims.height !== undefined ? dims.height : scale[1];
+  const thickness = dims.thickness !== undefined ? dims.thickness : scale[2];
   const ToolIcon = TOOL_ICONS[transformMode] || MousePointer;
 
   return (
@@ -38,12 +42,12 @@ const DimensionOverlay = ({
           </div>
           <span className="text-white/30 hidden sm:inline">|</span>
           <span className="shrink-0">
-            <span className="text-white/50">L×H×W </span>
-            <span className="text-green-300">{Number(scale[0]).toFixed(2)}</span>
+            <span className="text-white/50">L×H×T </span>
+            <span className="text-green-300">{Number(length).toFixed(2)}</span>
             <span className="text-white/40"> × </span>
-            <span className="text-green-300">{Number(scale[1]).toFixed(2)}</span>
+            <span className="text-green-300">{Number(height).toFixed(2)}</span>
             <span className="text-white/40"> × </span>
-            <span className="text-green-300">{Number(scale[2]).toFixed(2)}</span>
+            <span className="text-green-300">{Number(thickness).toFixed(2)}</span>
             <span className="text-white/50 ml-0.5">m</span>
           </span>
           <span className="text-white/30 hidden sm:inline">|</span>

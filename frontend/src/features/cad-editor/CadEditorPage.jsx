@@ -74,9 +74,12 @@ const CadEditorPage = () => {
   // Editor viewport settings
   const [transformMode, setTransformMode] = useState(TRANSFORM_MODES.SELECT);
   const [cameraPreset, setCameraPreset] = useState(CAMERA_PRESETS.PERSPECTIVE);
+  const [isDrawingWall, setIsDrawingWall] = useState(false);
   const [editorState, setEditorState] = useState({
     showGrid: true,
     showWireframe: false,
+    showBlueprintOverlay: true,
+    blueprintOpacity: 0.65,
     wallsVisible: true,
     doorsVisible: true,
     windowsVisible: true,
@@ -132,7 +135,27 @@ const CadEditorPage = () => {
         }
 
         // Poll / query Flask backend status
-        const statusData = await checkTaskStatus(activeTaskId);
+        let statusData = await checkTaskStatus(activeTaskId);
+        let attempts = 0;
+        const maxAttempts = 45; // 60+ seconds maximum wait for Blender headless execution
+
+        while (
+          (statusData.status === "processing" ||
+            statusData.status === "pending" ||
+            statusData.status === "queued") &&
+          attempts < maxAttempts &&
+          !isCancelled
+        ) {
+          attempts++;
+          await new Promise((res) => setTimeout(res, 1500));
+          if (isCancelled) return;
+          try {
+            statusData = await checkTaskStatus(activeTaskId);
+          } catch (pollErr) {
+            console.warn("Retrying task status poll...", pollErr);
+          }
+        }
+
         if (isCancelled) return;
 
         if (statusData.status === "completed") {
@@ -194,6 +217,9 @@ const CadEditorPage = () => {
 
           // Restore previously saved customizations if present
           const savedCustom = localProj?.customization;
+          if (savedCustom?.editorState) {
+            setEditorState((prev) => ({ ...prev, ...savedCustom.editorState }));
+          }
           if (savedCustom?.dynamicObjects) {
             setDynamicObjects(savedCustom.dynamicObjects);
           } else {
@@ -216,6 +242,7 @@ const CadEditorPage = () => {
             status: "completed",
             fileName: localProj?.fileName || statusData?.source_file?.filename,
             type: localProj?.type || statusData?.source_file?.type,
+            pipeline: localProj?.pipeline || analysis?.pipeline || "standard",
             floors: localProj?.floors || analysis?.floors || 1,
             wallHeight: localProj?.wallHeight || analysis?.wall_height,
             wallThickness: localProj?.wallThickness || analysis?.wall_thickness,
@@ -330,9 +357,10 @@ const CadEditorPage = () => {
   };
 
   const applyAddObject = (element) => {
+    const category = element.type === "wall" ? "walls" : "custom";
     setDynamicObjects((prev) => ({
       ...prev,
-      custom: [...prev.custom, element],
+      [category]: [...(prev[category] || []), element],
     }));
     setSelectedObject({
       id: element.id,
@@ -342,13 +370,52 @@ const CadEditorPage = () => {
   };
 
   const applyDeleteObject = (elementId) => {
-    setDynamicObjects((prev) => ({
-      ...prev,
-      custom: prev.custom.filter((o) => o.id !== elementId),
-    }));
+    setDynamicObjects((prev) => {
+      const filterOut = (list) => (list || []).filter((o) => o.id !== elementId);
+      return {
+        ...prev,
+        walls: filterOut(prev.walls),
+        doors: filterOut(prev.doors),
+        windows: filterOut(prev.windows),
+        rooms: filterOut(prev.rooms),
+        custom: filterOut(prev.custom),
+      };
+    });
     if (selectedObject?.id === elementId) {
       setSelectedObject(null);
     }
+  };
+
+  // Synchronize discovered scene meshes from loaded GLB with project state (Req 1)
+  const handleModelLoaded = (discovered) => {
+    if (!discovered) return;
+
+    const savedCustom = modelProject?.customization?.dynamicObjects;
+
+    setDynamicObjects((prev) => {
+      const mergeCategory = (discItems, savedItems) => {
+        if (!savedItems || savedItems.length === 0) return discItems;
+        const savedMap = new Map(savedItems.map((item) => [item.id, item]));
+        const merged = discItems.map((item) => {
+          const override = savedMap.get(item.id);
+          return override ? { ...item, ...override } : item;
+        });
+        savedItems.forEach((item) => {
+          if (item.isNew && !merged.some((m) => m.id === item.id)) {
+            merged.push(item);
+          }
+        });
+        return merged;
+      };
+
+      return {
+        walls: mergeCategory(discovered.walls || [], savedCustom?.walls),
+        doors: mergeCategory(discovered.doors || [], savedCustom?.doors),
+        windows: mergeCategory(discovered.windows || [], savedCustom?.windows),
+        rooms: mergeCategory(discovered.rooms || [], savedCustom?.rooms),
+        custom: savedCustom?.custom || prev.custom || [],
+      };
+    });
   };
 
   // Command-wrapped actions
@@ -387,7 +454,9 @@ const CadEditorPage = () => {
     const currentData = getSelectedObjectData();
     const prevTransform = {
       position: currentData?.position || [0, 0, 0],
+      rotation: currentData?.rotation || [0, 0, 0],
       scale: currentData?.scale || [1, 1, 1],
+      dimensions: currentData?.dimensions || { length: 3, height: 2.8, thickness: 0.25 },
     };
 
     commandManager.execute(
@@ -422,35 +491,59 @@ const CadEditorPage = () => {
     );
   };
 
-  const handleAddElement = (type) => {
-    const id = `custom_${type}_${nextIdCounter.current++}`;
-    const dims = DEFAULT_DIMENSIONS[type] || { width: 2, height: 2.8, depth: 0.2 };
+  // Interactive Wall Creation (+ Wall placed directly on ground) (Req 2)
+  const handleCreateWall = ({ startPoint, endPoint, length, height, thickness }) => {
+    const id = `custom_wall_${Date.now()}`;
+    const wallNum = dynamicObjects.walls.length + 1;
+    const center = [
+      parseFloat(((startPoint[0] + endPoint[0]) / 2).toFixed(2)),
+      parseFloat((height / 2).toFixed(2)),
+      parseFloat(((startPoint[2] + endPoint[2]) / 2).toFixed(2)),
+    ];
+    const angle = Math.atan2(endPoint[0] - startPoint[0], endPoint[2] - startPoint[2]);
 
-    const newElement = {
+    const newWall = {
       id,
-      name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${nextIdCounter.current - 1}`,
-      type,
+      name: `Wall ${wallNum}`,
+      type: "wall",
       isNew: true,
       visible: true,
       color: "#cccccc",
       roughness: 0.7,
       metalness: 0.1,
       opacity: 1.0,
-      position: [(Math.random() - 0.5) * 6, 0, (Math.random() - 0.5) * 6],
-      scale: [dims.width, dims.height, dims.depth],
+      position: center,
+      rotation: [0, parseFloat(angle.toFixed(3)), 0],
+      scale: [thickness, height, length],
+      dimensions: {
+        length: parseFloat(length.toFixed(2)),
+        height: parseFloat(height.toFixed(2)),
+        thickness: parseFloat(thickness.toFixed(2)),
+      },
+      startPoint,
+      endPoint,
     };
 
     commandManager.execute(
       new AddElementCommand({
-        element: newElement,
+        element: newWall,
         onAdd: applyAddObject,
         onRemove: applyDeleteObject,
       })
     );
+    setIsDrawingWall(false);
   };
 
+  // Universal deletion for any architectural element or wall (Req 1)
   const handleDeleteObject = (elementId) => {
-    const element = dynamicObjects.custom.find((o) => o.id === elementId);
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const element = all.find((o) => o.id === elementId);
     if (!element) return;
 
     commandManager.execute(
@@ -542,7 +635,13 @@ const CadEditorPage = () => {
       <CadToolbar
         transformMode={transformMode}
         onSetTransformMode={setTransformMode}
-        onAddElement={handleAddElement}
+        isDrawingWall={isDrawingWall}
+        onToggleDrawWall={() => {
+          setIsDrawingWall((prev) => !prev);
+          if (!isDrawingWall) {
+            setSelectedObject(null);
+          }
+        }}
         cameraPreset={cameraPreset}
         onSetCameraPreset={handleSetCameraPreset}
         showGrid={editorState.showGrid}
@@ -552,6 +651,17 @@ const CadEditorPage = () => {
         showWireframe={editorState.showWireframe}
         onToggleWireframe={() =>
           setEditorState((prev) => ({ ...prev, showWireframe: !prev.showWireframe }))
+        }
+        showBlueprint={editorState.showBlueprintOverlay !== false}
+        onToggleBlueprint={() =>
+          setEditorState((prev) => ({
+            ...prev,
+            showBlueprintOverlay: prev.showBlueprintOverlay === false,
+          }))
+        }
+        blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
+        onChangeBlueprintOpacity={(opacity) =>
+          setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
         }
         canUndo={commandState.canUndo}
         canRedo={commandState.canRedo}
@@ -659,10 +769,23 @@ const CadEditorPage = () => {
               <CadViewport
                 ref={viewportRef}
                 modelUrl={modelUrl}
+                blueprintUrl={
+                  modelProject?.sourceThumbnail ||
+                  modelProject?.sourceDownloadUrl ||
+                  (activeTaskId ? `/api/source/${activeTaskId}` : null)
+                }
                 editorState={editorState}
                 dynamicObjects={dynamicObjects}
                 selectedObject={selectedObject}
                 onObjectSelect={setSelectedObject}
+                onModelLoaded={handleModelLoaded}
+                onTransformChange={handleUpdateTransform}
+                transformMode={transformMode}
+                isDrawingWall={isDrawingWall}
+                onCreateWall={handleCreateWall}
+                onCancelDrawWall={() => setIsDrawingWall(false)}
+                wallHeight={modelProject?.wallHeight || modelProject?.analysis?.wall_height || 2.8}
+                wallThickness={modelProject?.wallThickness || modelProject?.analysis?.wall_thickness || 0.25}
               />
               <DimensionOverlay
                 transformMode={transformMode}
@@ -729,6 +852,17 @@ const CadEditorPage = () => {
             onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
             isComparing={showCompareOverlay}
             onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
+            showBlueprint={editorState.showBlueprintOverlay !== false}
+            onToggleBlueprint={() =>
+              setEditorState((prev) => ({
+                ...prev,
+                showBlueprintOverlay: prev.showBlueprintOverlay === false,
+              }))
+            }
+            blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
+            onChangeBlueprintOpacity={(opacity) =>
+              setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
+            }
           />
         </div>
       </div>

@@ -1,7 +1,8 @@
-# Environment variables
+# Environment variables and secrets (never commit credentials)
 .env
 .env.local
 .env.*.local
+!.env.example
 
 # Node dependencies and build artifacts
 node_modules/
@@ -14,7 +15,7 @@ build/
 */.vite/
 *.local
 
-# Python artifacts
+# Python virtual environments, caches, and bytecode
 __pycache__/
 */__pycache__/
 *.py[cod]
@@ -27,13 +28,22 @@ env/
 */env/
 .pytest_cache/
 
-# Test generated model outputs and uploads (preserve directories)
-backend/model-generation/outputs/*.glb
-backend/model-generation/uploads/*.json
-backend/outputs/*.glb
-backend/uploads/*.json
+# Project documentation & sample blueprints (preserved locally, excluded from Git)
+docs/
+samples/
 
-# IDE and OS
+# Local backups, patches, and temporary scripts
+*.patch
+working_state_backup.patch
+working_state_status.txt
+
+# Generated 3D artifacts, task metadata, and runtime uploads
+backend/model-generation/outputs/
+backend/model-generation/uploads/
+backend/outputs/
+backend/uploads/
+
+# IDE, OS, and system caches
 .idea/
 .vscode/
 *.swp
@@ -42,13 +52,7 @@ Thumbs.db
 .DS_Store
 
 # Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# Samples blueprints
-samples/
-
-# Uploads and Output
-backend/model-generation/outputs
-backend/model-generation/uploads
