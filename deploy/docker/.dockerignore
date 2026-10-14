@@ -1,4 +1,50 @@
-.react-router
-build
-node_modules
-README.md
+# Git and CI
+.git
+.gitignore
+.github
+
+# Local environment and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node dependencies and build caches
+node_modules/
+*/node_modules/
+dist/
+*/dist/
+build/
+*/build/
+.vite/
+*/.vite/
+
+# Python virtual environments and caches
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+*/venv/
+env/
+*/env/
+.pytest_cache/
+
+# Project documentation & sample blueprints
+docs/
+samples/
+
+# Local logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+*.patch
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Test outputs and transient uploads
+backend/model-generation/outputs/
+backend/model-generation/uploads/

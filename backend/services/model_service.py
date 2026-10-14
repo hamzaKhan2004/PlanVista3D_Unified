@@ -8,6 +8,8 @@ from backend.services.contour_service import create_analysis_from_blueprint
 from backend.services.dxf_service import create_analysis_from_dxf
 from backend.services.vector_service import extract_vector_walls
 
+IS_WINDOWS = os.name == "nt"
+
 def process_blueprint_async(
     task_id, input_path, output_path, floors=3, wall_height=3.2, wall_thickness=0.25, vector_data=None, target_size=28.0
 ):
@@ -34,6 +36,8 @@ def process_blueprint_async(
             analysis_data = {
                 "pipeline": "vector_assisted",
                 "line_segments": vector_data["line_segments"],
+                "curves": vector_data.get("curves", []),
+                "openings": vector_data.get("openings", []),
                 "target_size": float(target_size or vector_data.get("target_size", 28.0)),
                 "wall_height": float(wall_height or vector_data.get("wall_height", 3.0)),
                 "wall_thickness": float(wall_thickness or vector_data.get("wall_thickness", 0.25)),
@@ -68,7 +72,7 @@ def process_blueprint_async(
                 encoding="utf-8",
                 errors="replace",
                 timeout=300,
-                shell=True,
+                shell=IS_WINDOWS,
             )
 
             print(f"[SUBPROCESS_RETURN] Exit code: {result.returncode}")
@@ -139,7 +143,7 @@ def process_blueprint_async(
                 encoding="utf-8",
                 errors="replace",
                 timeout=300,
-                shell=True,
+                shell=IS_WINDOWS,
             )
 
             print(f"[SUBPROCESS_RETURN] Exit code: {result.returncode}")
@@ -157,6 +161,7 @@ def process_blueprint_async(
                     "analysis": {
                         "pipeline": "dxf",
                         "model_size_bytes": file_size,
+                        "walls_detected": len(analysis_data.get("line_segments", [])) + len(analysis_data.get("curves", [])),
                         "floors": analysis_data["floors"],
                         "wall_height": analysis_data["wall_height"],
                         "wall_thickness": analysis_data["wall_thickness"],
@@ -208,7 +213,7 @@ def process_blueprint_async(
                 encoding="utf-8",
                 errors="replace",
                 timeout=300,
-                shell=True,
+                shell=IS_WINDOWS,
             )
 
             print(f"[SUBPROCESS_RETURN] Exit code: {result.returncode}")

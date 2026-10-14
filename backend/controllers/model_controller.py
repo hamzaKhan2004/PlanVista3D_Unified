@@ -83,10 +83,10 @@ class ModelController:
             input_path=input_path,
             output_path=output_path,
             floors=params["floors"],
-            wall_height=params["wall_height"],
-            wall_thickness=params["wall_thickness"],
+            wall_height=float(vector_data.get("wall_height", params["wall_height"])) if vector_data else params["wall_height"],
+            wall_thickness=float(vector_data.get("wall_thickness", params["wall_thickness"])) if vector_data else params["wall_thickness"],
             vector_data=vector_data,
-            target_size=target_size,
+            target_size=float(vector_data.get("target_size", target_size)) if vector_data else target_size,
         )
 
         return (

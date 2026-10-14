@@ -8,6 +8,7 @@ import {
   Maximize,
   Compass,
   Info,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ARCHITECTURAL_SWATCHES } from "../../domain/cad/cadTypes";
 import Badge from "../ui/Badge";
@@ -27,6 +28,10 @@ const CadPropertiesPanel = ({
   onToggleCompare,
   isComparing,
   onSwitchTo2DPlan,
+  showBlueprint = true,
+  onToggleBlueprint,
+  blueprintOpacity = 0.65,
+  onChangeBlueprintOpacity,
 }) => {
   if (!selectedObject) {
     return (
@@ -39,6 +44,55 @@ const CadPropertiesPanel = ({
           <p className="text-xs text-zinc-500 dark:text-[#b4ada3] mt-1 max-w-[200px]">
             Select an architectural element in the 3D viewport or hierarchy tree to customize properties.
           </p>
+        </div>
+
+        {/* Blueprint Ground Overlay Calibration Card (Req 3) */}
+        <div className="p-4 bg-white dark:bg-[#211f1d] rounded-2xl border border-[#eae4dc] dark:border-[#39342f] shadow-warm-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center">
+                <ImageIcon className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-serif font-bold text-xs text-zinc-900 dark:text-[#f5f0e8] leading-none">
+                  Blueprint Overlay
+                </h4>
+                <span className="text-[10px] text-zinc-500 dark:text-[#746e65]">
+                  3D Viewport Floor Reference
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={onToggleBlueprint}
+              title={showBlueprint ? "Hide Blueprint Ground Overlay" : "Show Blueprint Ground Overlay"}
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                showBlueprint
+                  ? "bg-orange-50 dark:bg-[#ff7417]/15 text-orange-600 dark:text-[#ff7417] border-orange-200 dark:border-orange-900/60"
+                  : "bg-zinc-50 dark:bg-[#2b2a27] text-zinc-400 dark:text-[#746e65] border-zinc-200 dark:border-[#39342f]"
+              }`}
+            >
+              {showBlueprint ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {showBlueprint && (
+            <div className="pt-2 border-t border-zinc-100 dark:border-[#39342f]/80 space-y-2">
+              <div className="flex justify-between text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3]">
+                <span>Overlay Opacity</span>
+                <span className="font-mono">{Math.round((blueprintOpacity ?? 0.65) * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="1.0"
+                step="0.05"
+                value={blueprintOpacity ?? 0.65}
+                onChange={(e) => onChangeBlueprintOpacity?.(parseFloat(e.target.value))}
+                className="w-full accent-orange-500 cursor-pointer"
+              />
+            </div>
+          )}
         </div>
 
         {/* Source Blueprint Information */}
@@ -54,6 +108,7 @@ const CadPropertiesPanel = ({
   }
 
   const { id, name, type } = selectedObject;
+  const isWall = type === "wall" || id.toLowerCase().includes("wall");
   const isVisible = objectData?.visible !== false;
   const currentColor = objectData?.color || "#cccccc";
   const roughness = objectData?.roughness !== undefined ? objectData.roughness : 0.7;
@@ -62,6 +117,11 @@ const CadPropertiesPanel = ({
 
   const position = objectData?.position || [0, 0, 0];
   const scale = objectData?.scale || [1, 1, 1];
+  const dimensions = objectData?.dimensions || {
+    length: scale[0] || 3,
+    height: scale[1] || 2.8,
+    thickness: scale[2] || 0.25,
+  };
 
   const handlePositionChange = (axisIndex, value) => {
     const num = parseFloat(value) || 0;
@@ -70,11 +130,16 @@ const CadPropertiesPanel = ({
     onUpdateTransform(id, { position: nextPos, scale });
   };
 
-  const handleScaleChange = (axisIndex, value) => {
-    const num = Math.max(0.01, parseFloat(value) || 0.1);
-    const nextScale = [...scale];
-    nextScale[axisIndex] = num;
-    onUpdateTransform(id, { position, scale: nextScale });
+  const handleDimensionChange = (key, value) => {
+    const num = Math.max(0.05, parseFloat(value) || 0.1);
+    const nextDims = { ...dimensions, [key]: num };
+    let nextScale = [...scale];
+
+    if (key === "length") nextScale[0] = num;
+    else if (key === "height") nextScale[1] = num;
+    else if (key === "thickness") nextScale[2] = num;
+
+    onUpdateTransform(id, { position, scale: nextScale, dimensions: nextDims });
   };
 
   return (
@@ -88,7 +153,7 @@ const CadPropertiesPanel = ({
           <button
             onClick={() => onToggleVisibility(id)}
             title={isVisible ? "Hide element" : "Show element"}
-            className={`p-1.5 rounded-lg border transition-colors ${
+            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
               isVisible
                 ? "bg-white dark:bg-[#211f1d] text-zinc-600 dark:text-[#b4ada3] border-zinc-200 dark:border-[#39342f] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
                 : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-100"
@@ -139,7 +204,7 @@ const CadPropertiesPanel = ({
                 onClick={() => onUpdateColor(id, swatch.hex)}
                 title={swatch.name}
                 style={{ backgroundColor: swatch.hex }}
-                className={`w-full aspect-square rounded-md border transition-all ${
+                className={`w-full aspect-square rounded-md border transition-all cursor-pointer ${
                   currentColor.toLowerCase() === swatch.hex.toLowerCase()
                     ? "ring-2 ring-orange-500 ring-offset-1 border-white dark:ring-offset-[#1d1b19]"
                     : "border-black/10 dark:border-white/10 hover:scale-105"
@@ -163,7 +228,7 @@ const CadPropertiesPanel = ({
               step="0.05"
               value={roughness}
               onChange={(e) => onUpdateProperty(id, "roughness", parseFloat(e.target.value))}
-              className="w-full accent-orange-500"
+              className="w-full accent-orange-500 cursor-pointer"
             />
           </div>
 
@@ -179,7 +244,7 @@ const CadPropertiesPanel = ({
               step="0.05"
               value={metalness}
               onChange={(e) => onUpdateProperty(id, "metalness", parseFloat(e.target.value))}
-              className="w-full accent-orange-500"
+              className="w-full accent-orange-500 cursor-pointer"
             />
           </div>
 
@@ -195,22 +260,22 @@ const CadPropertiesPanel = ({
               step="0.05"
               value={opacity}
               onChange={(e) => onUpdateProperty(id, "opacity", parseFloat(e.target.value))}
-              className="w-full accent-orange-500"
+              className="w-full accent-orange-500 cursor-pointer"
             />
           </div>
         </div>
       </div>
 
-      {/* Position & Dimensions */}
+      {/* Actual Dimensions & Coordinates (Req 1) */}
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-1.5 font-semibold text-zinc-800 dark:text-[#b4ada3] text-[11px] uppercase tracking-wider">
           <Maximize className="w-3.5 h-3.5 text-orange-500" />
-          <span>Coordinates & Dimensions</span>
+          <span>{isWall ? "Wall Dimensions (Actual)" : "Coordinates & Dimensions"}</span>
         </div>
 
         {/* Position */}
         <div>
-          <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">Position (m)</label>
+          <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">Center Position (m)</label>
           <div className="grid grid-cols-3 gap-2">
             <div>
               <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">X</span>
@@ -245,40 +310,48 @@ const CadPropertiesPanel = ({
           </div>
         </div>
 
-        {/* Dimensions / Scale */}
+        {/* Real Dimensions: Length, Height, Thickness */}
         <div>
-          <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">Dimensions (m)</label>
+          <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">
+            {isWall ? "Wall Geometry (m)" : "Dimensions (m)"}
+          </label>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">L (X)</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+                {isWall ? "Length" : "L (X)"}
+              </span>
               <input
                 type="number"
                 step="0.1"
                 min="0.1"
-                value={Number(scale[0]).toFixed(2)}
-                onChange={(e) => handleScaleChange(0, e.target.value)}
+                value={Number(dimensions.length).toFixed(2)}
+                onChange={(e) => handleDimensionChange("length", e.target.value)}
                 className="w-full px-2 py-1 rounded border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] dark:text-[#f5f0e8] font-mono text-xs focus:outline-orange-500"
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">H (Y)</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+                {isWall ? "Height" : "H (Y)"}
+              </span>
               <input
                 type="number"
                 step="0.1"
                 min="0.1"
-                value={Number(scale[1]).toFixed(2)}
-                onChange={(e) => handleScaleChange(1, e.target.value)}
+                value={Number(dimensions.height).toFixed(2)}
+                onChange={(e) => handleDimensionChange("height", e.target.value)}
                 className="w-full px-2 py-1 rounded border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] dark:text-[#f5f0e8] font-mono text-xs focus:outline-orange-500"
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">W (Z)</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+                {isWall ? "Thickness" : "W (Z)"}
+              </span>
               <input
                 type="number"
-                step="0.1"
-                min="0.1"
-                value={Number(scale[2]).toFixed(2)}
-                onChange={(e) => handleScaleChange(2, e.target.value)}
+                step="0.05"
+                min="0.05"
+                value={Number(dimensions.thickness).toFixed(2)}
+                onChange={(e) => handleDimensionChange("thickness", e.target.value)}
                 className="w-full px-2 py-1 rounded border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] dark:text-[#f5f0e8] font-mono text-xs focus:outline-orange-500"
               />
             </div>
@@ -286,21 +359,19 @@ const CadPropertiesPanel = ({
         </div>
       </div>
 
-      {/* Delete / Remove Action */}
-      {objectData?.isNew && (
-        <div className="p-4 mt-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            fullWidth
-            onClick={() => onDeleteObject(id)}
-            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900/40 dark:hover:bg-red-950/20 flex items-center justify-center gap-1.5"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Remove Custom Element</span>
-          </Button>
-        </div>
-      )}
+      {/* Delete / Remove Action for any selected element (Req 1) */}
+      <div className="p-4 mt-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          fullWidth
+          onClick={() => onDeleteObject(id)}
+          className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900/40 dark:hover:bg-red-950/20 flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>{isWall ? "Delete Wall" : "Delete Element"}</span>
+        </Button>
+      </div>
 
       {/* Source Blueprint Accordion/Card */}
       <div className="p-4 border-t border-[#eae4dc] dark:border-[#39342f]">

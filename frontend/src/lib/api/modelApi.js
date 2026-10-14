@@ -1,4 +1,5 @@
 import axios from "axios";
+import { API_BASE_URL } from "../../infrastructure/config/constants";
 
 const MODEL_PROJECTS_STORAGE_KEY = "planvista3d_local_model_projects";
 
@@ -30,7 +31,7 @@ export const uploadBlueprint = async ({
     }
   }
 
-  const response = await axios.post("/api/upload", formData, {
+  const response = await axios.post(`${API_BASE_URL}/upload`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 
@@ -56,7 +57,7 @@ export const extractVectorGeometry = async ({
   formData.append("wall_thickness", Number(wallThickness));
   formData.append("target_size", Number(targetSize));
 
-  const response = await axios.post("/api/vector-extract", formData, {
+  const response = await axios.post(`${API_BASE_URL}/vector-extract`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
 
@@ -67,7 +68,7 @@ export const extractVectorGeometry = async ({
  * Polls the job status for a given task ID.
  */
 export const checkTaskStatus = async (taskId) => {
-  const response = await axios.get(`/api/status/${taskId}`);
+  const response = await axios.get(`${API_BASE_URL}/status/${taskId}`);
   return response.data; // { status, progress, model_file, analysis, error }
 };
 
@@ -75,14 +76,14 @@ export const checkTaskStatus = async (taskId) => {
  * Returns the download URL for a generated GLB model file.
  */
 export const getModelDownloadUrl = (modelFile) => {
-  return `/api/download/${modelFile}`;
+  return `${API_BASE_URL}/download/${modelFile}`;
 };
 
 /**
  * Returns the download URL for the original source blueprint file.
  */
 export const getSourceDownloadUrl = (taskId) => {
-  return `/api/source/${taskId}`;
+  return `${API_BASE_URL}/source/${taskId}`;
 };
 
 /**
@@ -90,7 +91,7 @@ export const getSourceDownloadUrl = (taskId) => {
  */
 export const checkModelServiceHealth = async () => {
   try {
-    const response = await axios.get("/api/health");
+    const response = await axios.get(`${API_BASE_URL}/health`);
     return response.data;
   } catch (error) {
     return { status: "unreachable", error: error.message };
@@ -134,7 +135,7 @@ export const deleteLocalModelProject = async (taskId) => {
 
     // Call backend delete
     try {
-      await axios.delete(`/api/project/${idToDelete}`);
+      await axios.delete(`${API_BASE_URL}/project/${idToDelete}`);
     } catch (e) {
       console.warn("Backend deletion non-critical error:", e);
     }

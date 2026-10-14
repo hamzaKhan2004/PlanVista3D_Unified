@@ -1,12 +1,12 @@
 import os
 import shutil
 
-# Root directories
+# Root directories (configurable via env for volume mounts in Docker / cloud deployments)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_GEN_DIR = os.path.join(BASE_DIR, "model-generation")
-UPLOAD_FOLDER = os.path.join(MODEL_GEN_DIR, "uploads")
-OUTPUT_FOLDER = os.path.join(MODEL_GEN_DIR, "outputs")
-TEXTURES_FOLDER = os.path.join(MODEL_GEN_DIR, "textures")
+UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", os.path.join(MODEL_GEN_DIR, "uploads"))
+OUTPUT_FOLDER = os.environ.get("OUTPUT_FOLDER", os.path.join(MODEL_GEN_DIR, "outputs"))
+TEXTURES_FOLDER = os.environ.get("TEXTURES_FOLDER", os.path.join(MODEL_GEN_DIR, "textures"))
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "dxf"}
 
@@ -19,7 +19,10 @@ PORT = int(os.environ.get("PORT", 5000))
 # CORS origins
 cors_origins_env = os.environ.get("CORS_ORIGIN")
 if cors_origins_env:
-    ALLOWED_ORIGINS = [o.strip() for o in cors_origins_env.split(",")]
+    if cors_origins_env.strip() == "*":
+        ALLOWED_ORIGINS = "*"
+    else:
+        ALLOWED_ORIGINS = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
 else:
     ALLOWED_ORIGINS = [
         "http://localhost:5173",

@@ -20,8 +20,11 @@ export const LOCAL_STORAGE_CAD_HISTORY_KEY = "planvista3d_cad_history";
 export const POLL_INTERVAL_MS = 1500;
 export const MAX_POLL_ATTEMPTS = 120; // 3 minutes timeout
 
-// API Base
-export const API_BASE_URL = "/api";
+// API Base URL (configurable via VITE_API_BASE_URL for decoupled production deployment)
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "/api";
 
 // Supported file extensions
 export const SUPPORTED_MODEL_FORMATS = [".dxf", ".png", ".jpg", ".jpeg"];
