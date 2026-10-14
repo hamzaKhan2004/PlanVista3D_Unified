@@ -36,6 +36,8 @@ def handle_model_generation_success(
         "status": "completed",
         "progress": 100,
         "model_file": model_filename,
+        "owner_id": owner_id,
+        "storage_provider": "local",
         "analysis": {
             "pipeline": pipeline,
             "model_size_bytes": file_size,
@@ -54,11 +56,6 @@ def handle_model_generation_success(
                 model_id=task_id,
             )
             print(f"[S3_UPLOAD] Uploaded {s3_res['key']} ({s3_res['size']} bytes) to {s3_res['bucket']}")
-            task_repository.update(task_id, {
-                "s3_key": s3_res["key"],
-                "s3_bucket": s3_res["bucket"],
-                "storage_provider": "s3",
-            })
 
             # Record in MongoDB if configured
             if mongo_manager.is_configured():
@@ -99,8 +96,49 @@ def handle_model_generation_success(
                     )
                 except Exception as db_err:
                     print(f"[S3_MONGO] Notice: Failed to persist S3 asset record in MongoDB: {db_err}")
+                    # Clean up orphaned S3 object
+                    try:
+                        s3_service.delete_object(s3_res["key"])
+                    except Exception as s3_clean_err:
+                        print(f"[S3_ROLLBACK] Failed to delete orphaned S3 object: {s3_clean_err}")
+                    # Revert to local storage provider to prevent false durable representation
+                    task_repository.update(task_id, {
+                        "storage_provider": "local",
+                        "s3_key": None,
+                        "s3_bucket": None,
+                    })
+                    return
+
+            task_repository.update(task_id, {
+                "s3_key": s3_res["key"],
+                "s3_bucket": s3_res["bucket"],
+                "storage_provider": "s3",
+            })
         except Exception as s3_err:
             print(f"[S3_UPLOAD] Notice: S3 upload failed; preserving local GLB: {s3_err}")
+            task_repository.update(task_id, {
+                "storage_provider": "local",
+                "s3_key": None,
+                "s3_bucket": None,
+            })
+    elif mongo_manager.is_configured():
+        try:
+            project_repository.update_project(
+                project_id=task_id,
+                updates={"status": "completed"},
+                owner_id=owner_id,
+            )
+            project_repository.update_generation_job(
+                job_id=task_id,
+                updates={
+                    "status": "completed",
+                    "progress": 100,
+                    "result": {"model_file": model_filename},
+                },
+                owner_id=owner_id,
+            )
+        except Exception as mongo_err:
+            print(f"[MONGO] Notice: Failed to update project status in MongoDB: {mongo_err}")
 
 
 def process_blueprint_async(

@@ -201,6 +201,7 @@ class ModelController:
             "status": "queued",
             "progress": 0,
             "source_file": source_info,
+            "owner_id": owner_id,
         })
 
         dispatch_generation_task(
@@ -286,16 +287,65 @@ class ModelController:
 
     @staticmethod
     def get_status(task_id: str):
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
+
+        owner_id = user["user_id"]
+
+        if mongo_manager.is_configured():
+            try:
+                project_owner = project_repository.get_project_owner(task_id)
+                if project_owner is not None and project_owner != owner_id:
+                    return jsonify({"error": "Forbidden", "message": "You do not have permission to access this task"}), 403
+            except Exception as e:
+                print(f"[STATUS] Error checking project ownership: {e}")
+
         task_data = task_repository.get(task_id)
         if not task_data:
             return jsonify({"status": "error", "progress": 0, "error": "Task not found"}), 200
+
+        task_owner = task_data.get("owner_id")
+        if task_owner and task_owner != owner_id:
+            return jsonify({"error": "Forbidden", "message": "You do not have permission to access this task"}), 403
+
+        if is_production_environment() and not task_owner and not mongo_manager.is_configured():
+            return jsonify({"status": "error", "progress": 0, "error": "Task not found"}), 200
+
         return jsonify(task_data)
 
     @staticmethod
     def download_model(filename: str):
+        """Streams a local GLB model file with ownership verification."""
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
+
+        owner_id = user["user_id"]
+        safe_filename = secure_filename(filename)
+
+        task_id = None
+        if "_" in safe_filename:
+            task_id = safe_filename.split("_", 1)[0]
+
+        if task_id:
+            if mongo_manager.is_configured():
+                try:
+                    project_owner = project_repository.get_project_owner(task_id)
+                    if project_owner is not None and project_owner != owner_id:
+                        return jsonify({"error": "Forbidden", "message": "You do not have permission to access this model"}), 403
+                except Exception as e:
+                    print(f"[MODEL_DOWNLOAD] Error checking project ownership: {e}")
+
+            task_data = task_repository.get(task_id)
+            if task_data:
+                task_owner = task_data.get("owner_id")
+                if task_owner and task_owner != owner_id:
+                    return jsonify({"error": "Forbidden", "message": "You do not have permission to access this model"}), 403
+
         try:
             return send_from_directory(
-                OUTPUT_FOLDER, filename, as_attachment=False
+                OUTPUT_FOLDER, safe_filename, as_attachment=False
             )
         except FileNotFoundError:
             return jsonify({"error": "File not found"}), 404
@@ -303,6 +353,26 @@ class ModelController:
     @staticmethod
     def download_source(task_id: str):
         """Streams the original uploaded blueprint file (DXF or Image) without exposing server paths."""
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
+
+        owner_id = user["user_id"]
+
+        if mongo_manager.is_configured():
+            try:
+                project_owner = project_repository.get_project_owner(task_id)
+                if project_owner is not None and project_owner != owner_id:
+                    return jsonify({"error": "Forbidden", "message": "You do not have permission to access this file"}), 403
+            except Exception as e:
+                print(f"[SOURCE_DOWNLOAD] Error checking project ownership: {e}")
+
+        task_data = task_repository.get(task_id)
+        if task_data:
+            task_owner = task_data.get("owner_id")
+            if task_owner and task_owner != owner_id:
+                return jsonify({"error": "Forbidden", "message": "You do not have permission to access this file"}), 403
+
         if not os.path.exists(UPLOAD_FOLDER):
             return jsonify({"error": "Source file not found"}), 404
 
@@ -372,6 +442,10 @@ class ModelController:
         # Local model fallback (when MongoDB is unconfigured or S3 asset not recorded)
         task_data = task_repository.get(task_id)
         if task_data:
+            task_owner = task_data.get("owner_id")
+            if task_owner and task_owner != owner_id:
+                return jsonify({"error": "Forbidden", "message": "You do not have permission to access this model"}), 403
+
             if task_data.get("s3_key") and s3_service.is_configured():
                 try:
                     presigned_url = s3_service.generate_presigned_url(task_data["s3_key"], expiry_seconds=900)
@@ -560,6 +634,7 @@ class ModelController:
             # Clean up ImageKit and S3 assets and MongoDB records.
             try:
                 assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
+                storage_errors = []
                 for asset in assets:
                     storage_provider = asset.get("storage_provider")
                     storage_key = asset.get("storage_key")
@@ -568,14 +643,20 @@ class ModelController:
                     if not project_repository.is_asset_referenced_elsewhere(storage_key, exclude_project_id=task_id):
                         if storage_provider == "imagekit":
                             try:
-                                imagekit_service.delete_file(storage_key)
+                                ik_res = imagekit_service.delete_file(storage_key)
+                                if not ik_res:
+                                    storage_errors.append(f"ImageKit failed to delete {storage_key}")
                             except Exception as ik_err:
                                 print(f"[CLEANUP] Failed to delete ImageKit asset {storage_key}: {ik_err}")
+                                storage_errors.append(f"ImageKit delete error: {str(ik_err)}")
                         elif storage_provider == "s3":
                             try:
-                                s3_service.delete_object(storage_key)
+                                s3_res = s3_service.delete_object(storage_key)
+                                if not s3_res:
+                                    storage_errors.append(f"S3 failed to delete {storage_key}")
                             except Exception as s3_err:
                                 print(f"[CLEANUP] Failed to delete S3 asset {storage_key}: {s3_err}")
+                                storage_errors.append(f"S3 delete error: {str(s3_err)}")
                     else:
                         print(f"[CLEANUP] File {storage_key} referenced by another project; preserving")
                 deleted = project_repository.delete_project(task_id, owner_id=owner_id)
@@ -590,6 +671,14 @@ class ModelController:
                 task_repository.delete(task_id)
             except Exception as fs_err:
                 print(f"[CLEANUP] Notice during local file deletion: {fs_err}")
+
+            if storage_errors:
+                return jsonify({
+                    "success": False,
+                    "partial": True,
+                    "message": f"Project {task_id} metadata removed, but cloud storage cleanup encountered errors",
+                    "storage_errors": storage_errors,
+                }), 207
 
             return jsonify({"success": True, "message": f"Project {task_id} deleted"}), 200
 
