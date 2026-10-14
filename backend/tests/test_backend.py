@@ -115,6 +115,13 @@ class BackendRegressionTests(unittest.TestCase):
 
         # 1. Create test records and files
         task_repository.set(del_task_id, {"status": "completed", "progress": 100})
+        from backend.db.mongo import mongo_manager
+        from backend.repositories.project_repository import project_repository
+        if mongo_manager.is_configured():
+            try:
+                project_repository.create_project({"project_id": del_task_id, "name": "del_test"}, owner_id="guest_local")
+            except Exception:
+                pass
         with open(glb_file, "w", encoding="utf-8") as f:
             f.write("GLB_DUMMY_DATA")
         with open(upload_file, "w", encoding="utf-8") as f:

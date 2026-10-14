@@ -2,16 +2,109 @@ import os
 import json
 import subprocess
 import threading
+from typing import Dict, Any, Optional
+
 from backend.config.config import MODEL_GEN_DIR, resolve_blender_path
 from backend.repositories.task_repository import task_repository
 from backend.services.contour_service import create_analysis_from_blueprint
 from backend.services.dxf_service import create_analysis_from_dxf
 from backend.services.vector_service import extract_vector_walls
+from backend.services.s3_service import s3_service
+from backend.repositories.project_repository import project_repository
+from backend.db.mongo import mongo_manager
 
 IS_WINDOWS = os.name == "nt"
 
+
+def handle_model_generation_success(
+    task_id: str,
+    output_path: str,
+    pipeline: str,
+    analysis_details: Dict[str, Any],
+    owner_id: str = "guest_local",
+) -> None:
+    """
+    Handles post-generation workflow:
+    1. Updates task_repository with completed status and geometry analysis.
+    2. Uploads model to S3 if configured, preserving the local GLB file.
+    3. Records model asset and updates project & generation job in MongoDB if configured.
+    """
+    file_size = os.path.getsize(output_path)
+    model_filename = os.path.basename(output_path)
+
+    task_data = {
+        "status": "completed",
+        "progress": 100,
+        "model_file": model_filename,
+        "analysis": {
+            "pipeline": pipeline,
+            "model_size_bytes": file_size,
+            **analysis_details,
+        },
+    }
+    task_repository.set(task_id, task_data)
+
+    # Amazon S3 Upload if configured
+    if s3_service.is_configured():
+        try:
+            s3_res = s3_service.upload_model(
+                file_path_or_bytes=output_path,
+                owner_id=owner_id,
+                project_id=task_id,
+                model_id=task_id,
+            )
+            print(f"[S3_UPLOAD] Uploaded {s3_res['key']} ({s3_res['size']} bytes) to {s3_res['bucket']}")
+            task_repository.update(task_id, {
+                "s3_key": s3_res["key"],
+                "s3_bucket": s3_res["bucket"],
+                "storage_provider": "s3",
+            })
+
+            # Record in MongoDB if configured
+            if mongo_manager.is_configured():
+                try:
+                    project_repository.record_asset(
+                        {
+                            "asset_id": f"s3_model_{task_id}",
+                            "project_id": task_id,
+                            "asset_type": "3d_model",
+                            "storage_provider": "s3",
+                            "storage_key": s3_res["key"],
+                            "bucket": s3_res["bucket"],
+                            "filename": model_filename,
+                            "file_size": file_size,
+                            "format": "glb",
+                        },
+                        owner_id=owner_id,
+                    )
+                    project_repository.update_project(
+                        project_id=task_id,
+                        updates={
+                            "model_ref": s3_res,
+                            "status": "completed",
+                        },
+                        owner_id=owner_id,
+                    )
+                    project_repository.update_generation_job(
+                        job_id=task_id,
+                        updates={
+                            "status": "completed",
+                            "progress": 100,
+                            "result": {
+                                "model_file": model_filename,
+                                "s3_key": s3_res["key"],
+                            },
+                        },
+                        owner_id=owner_id,
+                    )
+                except Exception as db_err:
+                    print(f"[S3_MONGO] Notice: Failed to persist S3 asset record in MongoDB: {db_err}")
+        except Exception as s3_err:
+            print(f"[S3_UPLOAD] Notice: S3 upload failed; preserving local GLB: {s3_err}")
+
+
 def process_blueprint_async(
-    task_id, input_path, output_path, floors=3, wall_height=3.2, wall_thickness=0.25, vector_data=None, target_size=28.0
+    task_id, input_path, output_path, floors=3, wall_height=3.2, wall_thickness=0.25, vector_data=None, target_size=28.0, owner_id="guest_local"
 ):
     """
     Background worker thread orchestrating Blender 5.0 3D geometry reconstruction.
@@ -82,21 +175,19 @@ def process_blueprint_async(
                 print("STDERR:\n", result.stderr[-500:])
 
             if result.returncode == 0 and os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                task_repository.set(task_id, {
-                    "status": "completed",
-                    "progress": 100,
-                    "model_file": os.path.basename(output_path),
-                    "analysis": {
-                        "pipeline": "vector_assisted",
+                handle_model_generation_success(
+                    task_id=task_id,
+                    output_path=output_path,
+                    pipeline="vector_assisted",
+                    analysis_details={
                         "walls_detected": len(vector_data["line_segments"]),
                         "wall_height": analysis_data["wall_height"],
                         "wall_thickness": analysis_data["wall_thickness"],
                         "target_size": analysis_data["target_size"],
-                        "model_size_bytes": file_size,
                     },
-                })
-                print(f"[SUCCESS_VECTOR] {output_path} created ({file_size} bytes)")
+                    owner_id=owner_id,
+                )
+                print(f"[SUCCESS_VECTOR] {output_path} created ({os.path.getsize(output_path)} bytes)")
             else:
                 error_msg = f"Failed: {result.stderr or 'Blender export failed'}"
                 task_repository.set(task_id, {
@@ -153,21 +244,19 @@ def process_blueprint_async(
                 print("STDERR:\n", result.stderr[-500:])
 
             if result.returncode == 0 and os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                task_repository.set(task_id, {
-                    "status": "completed",
-                    "progress": 100,
-                    "model_file": os.path.basename(output_path),
-                    "analysis": {
-                        "pipeline": "dxf",
-                        "model_size_bytes": file_size,
+                handle_model_generation_success(
+                    task_id=task_id,
+                    output_path=output_path,
+                    pipeline="dxf",
+                    analysis_details={
                         "walls_detected": len(analysis_data.get("line_segments", [])) + len(analysis_data.get("curves", [])),
                         "floors": analysis_data["floors"],
                         "wall_height": analysis_data["wall_height"],
                         "wall_thickness": analysis_data["wall_thickness"],
                     },
-                })
-                print(f"[SUCCESS_DXF] {output_path} created ({file_size} bytes)")
+                    owner_id=owner_id,
+                )
+                print(f"[SUCCESS_DXF] {output_path} created ({os.path.getsize(output_path)} bytes)")
             else:
                 error_msg = f"Failed: {result.stderr or 'Blender export failed'}"
                 task_repository.set(task_id, {
@@ -223,23 +312,21 @@ def process_blueprint_async(
                 print("STDERR:\n", result.stderr[-500:])
 
             if result.returncode == 0 and os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                task_repository.set(task_id, {
-                    "status": "completed",
-                    "progress": 100,
-                    "model_file": os.path.basename(output_path),
-                    "analysis": {
-                        "pipeline": "image",
+                handle_model_generation_success(
+                    task_id=task_id,
+                    output_path=output_path,
+                    pipeline="image",
+                    analysis_details={
                         "walls_detected": len(analysis_data["walls"]),
                         "doors_detected": len(analysis_data["doors"]),
                         "windows_detected": len(analysis_data["windows"]),
                         "rooms_detected": len(analysis_data["rooms"]),
-                        "model_size_bytes": file_size,
                         "scale_factor": analysis_data["scale_factor"],
                         "wall_height": analysis_data["wall_height"],
                     },
-                })
-                print(f"[SUCCESS_IMG] {output_path} created ({file_size} bytes)")
+                    owner_id=owner_id,
+                )
+                print(f"[SUCCESS_IMG] {output_path} created ({os.path.getsize(output_path)} bytes)")
             else:
                 error_msg = f"Failed: {result.stderr or 'Blender export failed'}"
                 task_repository.set(task_id, {
@@ -259,7 +346,7 @@ def process_blueprint_async(
 
 
 def dispatch_generation_task(
-    task_id, input_path, output_path, floors, wall_height, wall_thickness, vector_data=None, target_size=28.0
+    task_id, input_path, output_path, floors, wall_height, wall_thickness, vector_data=None, target_size=28.0, owner_id="guest_local"
 ):
     """Starts the background worker thread for a given task."""
     thread = threading.Thread(
@@ -273,6 +360,7 @@ def dispatch_generation_task(
             wall_thickness,
             vector_data,
             target_size,
+            owner_id,
         ),
     )
     thread.daemon = True

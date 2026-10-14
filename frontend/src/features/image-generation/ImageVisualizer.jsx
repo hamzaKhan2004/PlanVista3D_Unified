@@ -21,6 +21,7 @@ import Modal from "../../presentation/ui/Modal";
 import { useAuth } from "../../presentation/layout/AppLayout";
 import { generate3DViews } from "../../lib/puter/ai.action";
 import { createProject, getProjectById, deleteProject } from "../../lib/puter/puter.action";
+import { storeRenderedImage, deleteLocalModelProject } from "../../lib/api/modelApi";
 
 const ImageVisualizer = () => {
   const { id } = useParams();
@@ -48,9 +49,25 @@ const ImageVisualizer = () => {
       if (result.renderedImage) {
         setCurrentImage(result.renderedImage);
 
+        // Stage 4: Persist newly generated 2D preview image in ImageKit / MongoDB
+        let ikUrl = null;
+        try {
+          const stored = await storeRenderedImage({
+            image: result.renderedImage,
+            projectId: id,
+            name: `render_${id}.png`,
+          });
+          if (stored?.url) {
+            ikUrl = stored.url;
+          }
+        } catch (ikErr) {
+          console.warn("Notice: ImageKit storage unavailable for 2D render", ikErr);
+        }
+
         const updatedItem = {
           ...item,
-          renderedImage: result.renderedImage,
+          renderedImage: ikUrl || result.renderedImage,
+          imagekitUrl: ikUrl || undefined,
           renderedPath: result.renderedPath,
           timestamp: Date.now(),
           ownerId: item.ownerId ?? userId ?? null,
@@ -99,6 +116,13 @@ const ImageVisualizer = () => {
       setDeleteError("");
 
       await deleteProject({ id });
+
+      // Clean up backend ImageKit assets & MongoDB references
+      try {
+        await deleteLocalModelProject(id);
+      } catch (backendCleanupErr) {
+        console.warn("Backend project cleanup notice:", backendCleanupErr);
+      }
 
       navigate("/projects");
     } catch (err) {
