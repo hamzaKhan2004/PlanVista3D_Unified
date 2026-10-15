@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,6 +14,8 @@ import {
   Loader2,
   X,
   SplitSquareVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import CadToolbar from "../../presentation/cad/CadToolbar";
 import CadPropertiesPanel from "../../presentation/cad/CadPropertiesPanel";
@@ -30,7 +32,7 @@ import {
   checkTaskStatus,
   getModelDownloadUrl,
 } from "../../infrastructure/api/modelApiClient";
-import { getSecureModelUrl } from "../../lib/api/modelApi";
+import { getSecureModelUrl, saveProjectCustomization } from "../../lib/api/modelApi";
 import {
   loadModelProjects,
   getModelProjectById,
@@ -63,14 +65,24 @@ const CadEditorPage = () => {
 
   const [activeTaskId, setActiveTaskId] = useState(routeTaskId || null);
   const [modelProject, setModelProject] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(routeTaskId));
   const [error, setError] = useState("");
   const [saveSuccessMsg, setSaveSuccessMsg] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteProjectError, setDeleteProjectError] = useState("");
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
+
+  // Collapsible side panels state (Req 2)
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+
+  // Object deletion confirmation state (Req 3)
+  const [objectToDelete, setObjectToDelete] = useState(null);
+  const [showDeleteElementModal, setShowDeleteElementModal] = useState(false);
 
   // Editor viewport settings
   const [transformMode, setTransformMode] = useState(TRANSFORM_MODES.SELECT);
@@ -103,6 +115,29 @@ const CadEditorPage = () => {
   const viewportRef = useRef(null);
   const nextIdCounter = useRef(1);
 
+  // Development-only diagnostic logging helper (never logs query strings or presigned tokens)
+  const sanitizeUrlForLog = (url) => {
+    if (!url) return "none";
+    try {
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        const parsed = new URL(url);
+        return `[S3] ${parsed.origin}${parsed.pathname}`;
+      }
+      return `[Local] ${url}`;
+    } catch {
+      return "[Invalid URL]";
+    }
+  };
+
+  // Diagnostic log for active project ID and model file reference
+  useEffect(() => {
+    console.log(
+      `[CAD_DIAGNOSTIC] Active Project ID: ${activeTaskId || "none"}, Selected model asset: ${
+        modelProject?.model_file || (activeTaskId ? `${activeTaskId}_model.glb` : "none")
+      }`
+    );
+  }, [activeTaskId, modelProject?.model_file]);
+
   // Subscribe to command manager updates
   useEffect(() => {
     return commandManager.subscribe((state) => {
@@ -125,14 +160,38 @@ const CadEditorPage = () => {
         return;
       }
 
+      console.log(`[CAD_DIAGNOSTIC] initProject starting for activeTaskId: ${activeTaskId}`);
       setLoading(true);
       setError("");
 
       try {
         // Check local storage first
-        const localProj = getModelProjectById(activeTaskId);
+        let localProj = getModelProjectById(activeTaskId);
         if (localProj) {
           setModelProject(localProj);
+        }
+
+        // Retrieve fresh secure presigned S3 model URL upfront
+        let secureUrl = null;
+        let storageProvider = null;
+        try {
+          const secureRes = await getSecureModelUrl(activeTaskId);
+          if (secureRes?.url) {
+            secureUrl = secureRes.url;
+            storageProvider = secureRes.storage_provider || "s3";
+            console.log(
+              `[CAD_DIAGNOSTIC] Retrieved secure model URL upfront: ${sanitizeUrlForLog(
+                secureUrl
+              )} (storage: ${storageProvider})`
+            );
+            if (localProj) {
+              localProj = { ...localProj, model_url: secureUrl, storage_provider: storageProvider };
+              saveModelProject(localProj);
+              setModelProject(localProj);
+            }
+          }
+        } catch (secErr) {
+          console.warn("Notice checking secure model URL at init:", secErr);
         }
 
         // Poll / query Flask backend status
@@ -163,77 +222,74 @@ const CadEditorPage = () => {
           const analysis = statusData.analysis || {};
           const modelFile = statusData.model_file;
 
-          // Initialize elements from analysis if dynamicObjects is empty
-          const initialWalls = Array.from(
-            { length: analysis.walls_detected || 0 },
-            (_, i) => ({
-              id: `wall_${i}`,
-              name: `Wall ${i + 1}`,
-              visible: true,
-              color: "#cccccc",
-              isOriginal: true,
-              position: [0, 0, 0],
-              scale: [3, 2.8, 0.25],
-            })
-          );
-
-          const initialDoors = Array.from(
-            { length: analysis.doors_detected || 0 },
-            (_, i) => ({
-              id: `door_${i}`,
-              name: `Door ${i + 1}`,
-              visible: true,
-              color: "#8B4513",
-              isOriginal: true,
-              position: [0, 0, 0],
-              scale: [0.9, 2.1, 0.15],
-            })
-          );
-
-          const initialWindows = Array.from(
-            { length: analysis.windows_detected || 0 },
-            (_, i) => ({
-              id: `window_${i}`,
-              name: `Window ${i + 1}`,
-              visible: true,
-              color: "#87CEEB",
-              isOriginal: true,
-              position: [0, 0, 0],
-              scale: [1.2, 1.2, 0.15],
-            })
-          );
-
-          const initialRooms = Array.from(
-            { length: analysis.rooms_detected || 0 },
-            (_, i) => ({
-              id: `room_${i}`,
-              name: `Room ${i + 1}`,
-              visible: true,
-              color: "#8B4513",
-              isOriginal: true,
-              position: [0, 0, 0],
-              scale: [5, 0.2, 5],
-            })
-          );
-
           // Restore previously saved customizations if present
-          const savedCustom = localProj?.customization;
+          const savedCustom = localProj?.customization || statusData?.customization;
           if (savedCustom?.editorState) {
+            console.log("[CAD_DIAGNOSTIC] Restoring saved editorState from customization");
             setEditorState((prev) => ({ ...prev, ...savedCustom.editorState }));
           }
+
+          // Apply saved customizations safely without overwriting real discovered scene meshes
           if (savedCustom?.dynamicObjects) {
-            setDynamicObjects(savedCustom.dynamicObjects);
-          } else {
-            setDynamicObjects({
-              walls: initialWalls,
-              doors: initialDoors,
-              windows: initialWindows,
-              rooms: initialRooms,
-              custom: [],
+            console.log("[CAD_DIAGNOSTIC] Restoring saved dynamicObjects customization");
+            setDynamicObjects((prev) => {
+              const currentDeletedIds = savedCustom.dynamicObjects.deletedIds || [];
+              const deletedSet = new Set(currentDeletedIds);
+
+              if (prev.walls.length > 0) {
+                // Base meshes are already discovered; merge saved edits over them
+                const savedWallMap = new Map(
+                  (savedCustom.dynamicObjects.walls || []).map((w) => [w.id, w])
+                );
+                const updatedWalls = prev.walls
+                  .filter((w) => !deletedSet.has(w.id))
+                  .map((w) => {
+                    const ov = savedWallMap.get(w.id);
+                    if (!ov) return w;
+                    const isUserEdit = ov.isEdited === true;
+                    return {
+                      ...w,
+                      ...(ov.color ? { color: ov.color } : {}),
+                      ...(ov.visible !== undefined ? { visible: ov.visible } : {}),
+                      ...(isUserEdit ? { position: ov.position, rotation: ov.rotation, scale: ov.scale, isEdited: true } : {}),
+                    };
+                  });
+
+                const savedRoomMap = new Map(
+                  (savedCustom.dynamicObjects.rooms || []).map((r) => [r.id, r])
+                );
+                const updatedRooms = prev.rooms
+                  .filter((r) => !deletedSet.has(r.id))
+                  .map((r) => {
+                    const ov = savedRoomMap.get(r.id);
+                    if (!ov) return r;
+                    const isUserEdit = ov.isEdited === true;
+                    return {
+                      ...r,
+                      ...(ov.color ? { color: ov.color } : {}),
+                      ...(ov.visible !== undefined ? { visible: ov.visible } : {}),
+                      ...(isUserEdit ? { position: ov.position, rotation: ov.rotation, scale: ov.scale, isEdited: true } : {}),
+                    };
+                  });
+
+                return {
+                  ...prev,
+                  walls: updatedWalls,
+                  rooms: updatedRooms,
+                  custom: (savedCustom.dynamicObjects.custom || prev.custom || []).filter((c) => !deletedSet.has(c.id)),
+                  deletedIds: currentDeletedIds,
+                };
+              }
+              // If model meshes haven't finished discovery yet, store savedCustom for handleModelLoaded
+              return savedCustom.dynamicObjects;
             });
+          } else {
+            console.log(
+              "[CAD_DIAGNOSTIC] No saved customizations found. Preserving real GLB base geometry."
+            );
           }
 
-          // Ensure project is registered in localStorage with source metadata
+          // Ensure project is registered in localStorage with source metadata and customization
           const updatedProject = {
             id: activeTaskId,
             taskId: activeTaskId,
@@ -251,25 +307,56 @@ const CadEditorPage = () => {
             sourceThumbnail: localProj?.sourceThumbnail,
             sourceDownloadUrl: localProj?.sourceDownloadUrl || statusData?.source_file?.download_url || `/api/source/${activeTaskId}`,
             source_file: statusData?.source_file || localProj?.source_file,
+            storage_provider: storageProvider || statusData?.storage_provider || (statusData?.s3_uploaded ? "s3" : localProj?.storage_provider),
+            s3_uploaded: statusData?.s3_uploaded ?? localProj?.s3_uploaded ?? (storageProvider === "s3"),
+            customization: savedCustom || null,
           };
 
-          // Retrieve secure presigned S3 URL or authorized model URL
-          try {
-            const secureRes = await getSecureModelUrl(activeTaskId);
-            if (secureRes?.url) {
-              updatedProject.model_url = secureRes.url;
+          // Re-verify secure URL if not fetched upfront
+          if (!secureUrl) {
+            try {
+              const secureRes = await getSecureModelUrl(activeTaskId);
+              if (secureRes?.url) {
+                secureUrl = secureRes.url;
+                if (secureRes.storage_provider) {
+                  updatedProject.storage_provider = secureRes.storage_provider;
+                }
+              }
+            } catch (secErr) {
+              console.warn("Notice checking secure model URL:", secErr);
             }
-          } catch (secErr) {
-            console.warn("Notice checking secure model URL:", secErr);
+          }
+
+          if (secureUrl) {
+            updatedProject.model_url = secureUrl;
+            setError("");
+          } else if (updatedProject.storage_provider === "s3" || updatedProject.s3_uploaded) {
+            setError("Failed to retrieve secure 3D model URL from storage.");
           }
 
           saveModelProject(updatedProject);
           setModelProject(updatedProject);
         } else if (statusData.status === "error") {
-          // If we already have local project or completed model file, do NOT block reopening
-          if (localProj?.model_file || localProj?.status === "completed") {
-            console.warn("Backend reported task error, but local project is completed. Proceeding with saved artifact.");
-            setModelProject(localProj);
+          // If we have secure URL or local project, do NOT block reopening
+          if (secureUrl || localProj?.model_file || localProj?.status === "completed") {
+            console.warn("Backend reported task error, but S3 model or local project is available. Proceeding with model.");
+            const fallbackProj = localProj
+              ? {
+                  ...localProj,
+                  customization: savedCustom || localProj.customization || null,
+                  ...(secureUrl ? { model_url: secureUrl } : {}),
+                }
+              : {
+                  id: activeTaskId,
+                  taskId: activeTaskId,
+                  name: `Residence CAD ${activeTaskId.slice(0, 8)}`,
+                  model_file: `${activeTaskId}_model.glb`,
+                  model_url: secureUrl,
+                  status: "completed",
+                  customization: savedCustom || null,
+                };
+            saveModelProject(fallbackProj);
+            setModelProject(fallbackProj);
           } else {
             setError(statusData.error || "Model generation encountered an error");
           }
@@ -279,6 +366,9 @@ const CadEditorPage = () => {
         const localProj = getModelProjectById(activeTaskId);
         if (localProj?.model_file || localProj?.status === "completed") {
           setModelProject(localProj);
+          if (localProj.customization?.dynamicObjects) {
+            setDynamicObjects(localProj.customization.dynamicObjects);
+          }
         } else {
           setError("Failed to connect to model generation service.");
         }
@@ -294,9 +384,53 @@ const CadEditorPage = () => {
     };
   }, [activeTaskId]);
 
-  // Model file URL (prefers secure S3 presigned URL when available, with local fallback)
+  // Model file URL (prefers secure S3 presigned URL when available, with authenticated local fallback)
   const modelFile = modelProject?.model_file || (activeTaskId ? `${activeTaskId}_model.glb` : null);
-  const modelUrl = modelProject?.model_url || (modelFile ? getModelDownloadUrl(modelFile) : null);
+  const modelUrl = useMemo(() => {
+    // 1. If we have a validated model_url on modelProject, use it
+    if (modelProject?.model_url) {
+      return modelProject.model_url;
+    }
+    // 2. While loading / resolving secure model URL, DO NOT start GLB loading or fall back
+    if (loading) {
+      return null;
+    }
+    // 3. If loading is done, check whether this project is S3-backed
+    const isS3 =
+      modelProject?.storage_provider === "s3" ||
+      modelProject?.s3_uploaded === true;
+    if (isS3) {
+      // S3-backed project must not fall back to local URL
+      return null;
+    }
+    // 4. For confirmed local-only projects, fall back to authenticated local download
+    return modelFile ? getModelDownloadUrl(modelFile) : null;
+  }, [
+    modelProject?.model_url,
+    modelProject?.storage_provider,
+    modelProject?.s3_uploaded,
+    modelFile,
+    loading,
+  ]);
+
+  // Diagnostic tracker for modelUrl changes after initial load (never logs presigned tokens)
+  const prevModelUrlRef = useRef(null);
+  useEffect(() => {
+    if (modelUrl) {
+      if (prevModelUrlRef.current && prevModelUrlRef.current !== modelUrl) {
+        console.log(
+          `[CAD_DIAGNOSTIC] Model URL changed after first load: ${sanitizeUrlForLog(
+            prevModelUrlRef.current
+          )} -> ${sanitizeUrlForLog(modelUrl)}`
+        );
+      } else if (!prevModelUrlRef.current) {
+        console.log(
+          `[CAD_DIAGNOSTIC] Initial Model URL loaded: ${sanitizeUrlForLog(modelUrl)}`
+        );
+      }
+      prevModelUrlRef.current = modelUrl;
+    }
+  }, [modelUrl]);
 
   // Find object data in state
   const getSelectedObjectData = () => {
@@ -315,7 +449,7 @@ const CadEditorPage = () => {
   const applyColor = (objectId, color) => {
     setDynamicObjects((prev) => {
       const updateList = (list) =>
-        list.map((o) => (o.id === objectId ? { ...o, color } : o));
+        list.map((o) => (o.id === objectId ? { ...o, color, isEdited: true } : o));
       return {
         walls: updateList(prev.walls),
         doors: updateList(prev.doors),
@@ -329,7 +463,7 @@ const CadEditorPage = () => {
   const applyProperty = (objectId, property, value) => {
     setDynamicObjects((prev) => {
       const updateList = (list) =>
-        list.map((o) => (o.id === objectId ? { ...o, [property]: value } : o));
+        list.map((o) => (o.id === objectId ? { ...o, [property]: value, isEdited: true } : o));
       return {
         walls: updateList(prev.walls),
         doors: updateList(prev.doors),
@@ -343,7 +477,7 @@ const CadEditorPage = () => {
   const applyTransform = (objectId, transform) => {
     setDynamicObjects((prev) => {
       const updateList = (list) =>
-        list.map((o) => (o.id === objectId ? { ...o, ...transform } : o));
+        list.map((o) => (o.id === objectId ? { ...o, ...transform, isEdited: true } : o));
       return {
         walls: updateList(prev.walls),
         doors: updateList(prev.doors),
@@ -369,11 +503,28 @@ const CadEditorPage = () => {
   };
 
   const applyAddObject = (element) => {
-    const category = element.type === "wall" ? "walls" : "custom";
-    setDynamicObjects((prev) => ({
-      ...prev,
-      [category]: [...(prev[category] || []), element],
-    }));
+    const category =
+      element.type === "wall"
+        ? "walls"
+        : (element.type === "floor" || element.type === "room" || element.type === "foundation")
+        ? "rooms"
+        : element.type === "door"
+        ? "doors"
+        : element.type === "window"
+        ? "windows"
+        : "custom";
+
+    setDynamicObjects((prev) => {
+      const nextCategoryList = [...(prev[category] || [])];
+      if (!nextCategoryList.some((item) => item.id === element.id)) {
+        nextCategoryList.push(element);
+      }
+      return {
+        ...prev,
+        [category]: nextCategoryList,
+        deletedIds: (prev.deletedIds || []).filter((id) => id !== element.id),
+      };
+    });
     setSelectedObject({
       id: element.id,
       name: element.name,
@@ -391,6 +542,7 @@ const CadEditorPage = () => {
         windows: filterOut(prev.windows),
         rooms: filterOut(prev.rooms),
         custom: filterOut(prev.custom),
+        deletedIds: Array.from(new Set([...(prev.deletedIds || []), elementId])),
       };
     });
     if (selectedObject?.id === elementId) {
@@ -402,31 +554,95 @@ const CadEditorPage = () => {
   const handleModelLoaded = (discovered) => {
     if (!discovered) return;
 
-    const savedCustom = modelProject?.customization?.dynamicObjects;
+    console.log(
+      `[CAD_DIAGNOSTIC] handleModelLoaded received scene meshes: ${
+        discovered.walls?.length || 0
+      } walls, ${discovered.doors?.length || 0} doors, ${
+        discovered.windows?.length || 0
+      } windows, ${discovered.rooms?.length || 0} rooms, ${
+        discovered.foundation?.length || 0
+      } foundation`
+    );
+
+    const savedCustom =
+      modelProject?.customization?.dynamicObjects ||
+      getModelProjectById(activeTaskId)?.customization?.dynamicObjects;
+
+    const savedDeletedIds = savedCustom?.deletedIds || [];
+    const deletedSet = new Set(savedDeletedIds);
 
     setDynamicObjects((prev) => {
+      let hiddenCount = 0;
+      let replacedCount = 0;
+      let addedCount = 0;
+
       const mergeCategory = (discItems, savedItems) => {
-        if (!savedItems || savedItems.length === 0) return discItems;
+        const activeDiscItems = (discItems || []).filter((item) => !deletedSet.has(item.id));
+        if (!savedItems || savedItems.length === 0) return activeDiscItems;
+
         const savedMap = new Map(savedItems.map((item) => [item.id, item]));
-        const merged = discItems.map((item) => {
+        const merged = activeDiscItems.map((item) => {
           const override = savedMap.get(item.id);
-          return override ? { ...item, ...override } : item;
+          if (!override) return item;
+
+          // Only apply overrides that represent intentional user customizations,
+          // never dummy [0,0,0] placeholders from obsolete initialWalls
+          const hasTransformEdit =
+            override.isEdited === true ||
+            (override.position &&
+              (override.position[0] !== 0 ||
+                override.position[1] !== 0 ||
+                override.position[2] !== 0));
+
+          if (override.visible === false) hiddenCount++;
+          if (hasTransformEdit || (override.color && override.color !== item.color)) replacedCount++;
+
+          return {
+            ...item,
+            ...(override.color ? { color: override.color } : {}),
+            ...(override.roughness !== undefined ? { roughness: override.roughness } : {}),
+            ...(override.metalness !== undefined ? { metalness: override.metalness } : {}),
+            ...(override.opacity !== undefined ? { opacity: override.opacity } : {}),
+            ...(override.visible !== undefined ? { visible: override.visible } : {}),
+            ...(hasTransformEdit
+              ? {
+                  position: override.position,
+                  rotation: override.rotation || item.rotation,
+                  scale: override.scale || item.scale,
+                  isEdited: true,
+                }
+              : {}),
+          };
         });
+
         savedItems.forEach((item) => {
-          if (item.isNew && !merged.some((m) => m.id === item.id)) {
+          if (item.isNew && !deletedSet.has(item.id) && !merged.some((m) => m.id === item.id)) {
             merged.push(item);
+            addedCount++;
           }
         });
         return merged;
       };
 
-      return {
+      const allDiscoveredRooms = [
+        ...(discovered.rooms || []),
+        ...(discovered.foundation || []),
+      ];
+
+      const nextObjects = {
         walls: mergeCategory(discovered.walls || [], savedCustom?.walls),
         doors: mergeCategory(discovered.doors || [], savedCustom?.doors),
         windows: mergeCategory(discovered.windows || [], savedCustom?.windows),
-        rooms: mergeCategory(discovered.rooms || [], savedCustom?.rooms),
-        custom: savedCustom?.custom || prev.custom || [],
+        rooms: mergeCategory(allDiscoveredRooms, savedCustom?.rooms),
+        custom: (savedCustom?.custom || prev.custom || []).filter((item) => !deletedSet.has(item.id)),
+        deletedIds: savedDeletedIds,
       };
+
+      console.log(
+        `[CAD_DIAGNOSTIC] Customization hydration complete. Meshes: ${nextObjects.walls.length} walls, ${nextObjects.rooms.length} rooms/floors. Hidden: ${hiddenCount}, Customized/Replaced: ${replacedCount}, Added: ${addedCount}`
+      );
+
+      return nextObjects;
     });
   };
 
@@ -471,11 +687,16 @@ const CadEditorPage = () => {
       dimensions: currentData?.dimensions || { length: 3, height: 2.8, thickness: 0.25 },
     };
 
+    const newTransformWithFlag = {
+      ...newTransform,
+      isEdited: true,
+    };
+
     commandManager.execute(
       new TransformChangeCommand({
         objectId,
         prevTransform,
-        newTransform,
+        newTransform: newTransformWithFlag,
         onApply: applyTransform,
       })
     );
@@ -546,7 +767,7 @@ const CadEditorPage = () => {
     setIsDrawingWall(false);
   };
 
-  // Universal deletion for any architectural element or wall (Req 1)
+  // Universal deletion for any architectural element or wall (Req 1 & Req 3)
   const handleDeleteObject = (elementId) => {
     const all = [
       ...dynamicObjects.walls,
@@ -558,6 +779,22 @@ const CadEditorPage = () => {
     const element = all.find((o) => o.id === elementId);
     if (!element) return;
 
+    // Check if the element is an important foundation / floor element requiring confirmation
+    const isImportant =
+      element.type === "floor" ||
+      element.type === "foundation" ||
+      element.id.toLowerCase().includes("slab") ||
+      element.id.toLowerCase().includes("floor");
+
+    if (isImportant) {
+      setObjectToDelete(element);
+      setShowDeleteElementModal(true);
+    } else {
+      executeDeleteElement(element);
+    }
+  };
+
+  const executeDeleteElement = (element) => {
     commandManager.execute(
       new DeleteElementCommand({
         element,
@@ -565,6 +802,14 @@ const CadEditorPage = () => {
         onRemove: applyDeleteObject,
       })
     );
+  };
+
+  const handleConfirmDeleteObject = () => {
+    if (objectToDelete) {
+      executeDeleteElement(objectToDelete);
+      setObjectToDelete(null);
+      setShowDeleteElementModal(false);
+    }
   };
 
   // Category visibility toggle
@@ -584,16 +829,37 @@ const CadEditorPage = () => {
   };
 
   // Save customization action
-  const handleSaveProject = () => {
-    if (!activeTaskId) return;
+  const handleSaveProject = async () => {
+    if (!activeTaskId || isSaving) return;
+    setIsSaving(true);
+    setSaveError("");
+    setSaveSuccessMsg("");
+
     const customizationData = {
       dynamicObjects,
       editorState,
       savedAt: Date.now(),
     };
-    updateModelProjectCustomization(activeTaskId, customizationData);
-    setSaveSuccessMsg("Customization saved to project!");
-    setTimeout(() => setSaveSuccessMsg(""), 3000);
+
+    try {
+      // 1. Persist to backend MongoDB & task repository
+      await saveProjectCustomization(activeTaskId, customizationData);
+
+      // 2. Persist locally to localStorage
+      updateModelProjectCustomization(activeTaskId, customizationData);
+
+      // 3. Update current modelProject in React state
+      setModelProject((prev) => (prev ? { ...prev, customization: customizationData } : prev));
+
+      setSaveSuccessMsg("Customization saved to project!");
+      setTimeout(() => setSaveSuccessMsg(""), 3000);
+    } catch (err) {
+      console.error("Failed to persist project customization:", err);
+      setSaveError(err.message || "Failed to save project customization to server.");
+      setTimeout(() => setSaveError(""), 5000);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Export action
@@ -620,9 +886,12 @@ const CadEditorPage = () => {
     }
   };
 
-  // Keyboard shortcuts (Ctrl+Z, Ctrl+Y)
+  // Keyboard shortcuts (Ctrl+Z, Ctrl+Y, Delete / Backspace)
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      const isInput = activeTag === "input" || activeTag === "textarea" || activeTag === "select";
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -633,11 +902,14 @@ const CadEditorPage = () => {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         commandManager.redo();
+      } else if ((e.key === "Delete" || e.key === "Backspace") && !isInput && selectedObject) {
+        e.preventDefault();
+        handleDeleteObject(selectedObject.id);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [commandManager]);
+  }, [commandManager, selectedObject, dynamicObjects]);
 
   const selectedData = getSelectedObjectData();
 
@@ -693,6 +965,14 @@ const CadEditorPage = () => {
         </div>
       )}
 
+      {/* Save Error Notification */}
+      {saveError && (
+        <div className="absolute top-20 right-6 z-50 bg-red-800 text-white text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <AlertTriangle className="w-4 h-4 text-red-300" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Mobile Viewport Guard: 3D CAD Editing Unavailable on Mobile */}
@@ -727,16 +1007,19 @@ const CadEditorPage = () => {
         </div>
 
         {/* Left: Scene Hierarchy Tree Panel */}
-        <div className="w-64 border-r border-[#eae4dc] dark:border-[#39342f] h-full hidden md:block shrink-0 dark:bg-[#1d1b19]">
-          <SceneHierarchyPanel
-            dynamicObjects={dynamicObjects}
-            selectedObjectId={selectedObject?.id}
-            onSelectObject={setSelectedObject}
-            onToggleVisibility={handleToggleVisibility}
-            onToggleCategoryVisibility={handleToggleCategoryVisibility}
-            categoryVisibility={editorState}
-          />
-        </div>
+        {isLeftPanelOpen && (
+          <div className="w-64 border-r border-[#eae4dc] dark:border-[#39342f] h-full hidden md:block shrink-0 dark:bg-[#1d1b19]">
+            <SceneHierarchyPanel
+              dynamicObjects={dynamicObjects}
+              selectedObjectId={selectedObject?.id}
+              onSelectObject={setSelectedObject}
+              onToggleVisibility={handleToggleVisibility}
+              onToggleCategoryVisibility={handleToggleCategoryVisibility}
+              categoryVisibility={editorState}
+              onCollapse={() => setIsLeftPanelOpen(false)}
+            />
+          </div>
+        )}
 
         {/* Center: 3D Viewport */}
         <div className="flex-1 h-full relative">
@@ -767,11 +1050,39 @@ const CadEditorPage = () => {
             </div>
           ) : (
             <>
+              {/* Expand Left Panel Button (when collapsed) */}
+              {!isLeftPanelOpen && (
+                <button
+                  type="button"
+                  onClick={() => setIsLeftPanelOpen(true)}
+                  title="Expand Scene Outliner (Left Panel)"
+                  aria-label="Expand Scene Outliner"
+                  className="absolute top-4 left-4 z-20 p-2 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* Expand Right Panel Button (when collapsed) */}
+              {!isRightPanelOpen && (
+                <button
+                  type="button"
+                  onClick={() => setIsRightPanelOpen(true)}
+                  title="Expand Property Inspector (Right Panel)"
+                  aria-label="Expand Property Inspector"
+                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Floating Source Blueprint Button for rapid inspection */}
               <button
                 type="button"
                 onClick={() => setShowSourceModal(true)}
-                className="absolute top-4 left-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] transition-all text-xs font-semibold cursor-pointer"
+                className={`absolute top-4 z-20 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] transition-all text-xs font-semibold cursor-pointer ${
+                  !isLeftPanelOpen ? "left-16" : "left-4"
+                }`}
                 title="View original blueprint details and inspection"
               >
                 <FileText className="w-3.5 h-3.5 text-orange-500" />
@@ -850,34 +1161,87 @@ const CadEditorPage = () => {
         </div>
 
         {/* Right: Property Inspector Panel */}
-        <div className="w-80 border-l border-[#eae4dc] dark:border-[#39342f] h-full hidden sm:block shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19]">
-          <CadPropertiesPanel
-            selectedObject={selectedObject}
-            objectData={selectedData}
-            onUpdateColor={handleUpdateColor}
-            onUpdateProperty={handleUpdateProperty}
-            onUpdateTransform={handleUpdateTransform}
-            onToggleVisibility={handleToggleVisibility}
-            onDeleteObject={handleDeleteObject}
-            project={modelProject}
-            taskId={activeTaskId}
-            onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
-            isComparing={showCompareOverlay}
-            onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
-            showBlueprint={editorState.showBlueprintOverlay !== false}
-            onToggleBlueprint={() =>
-              setEditorState((prev) => ({
-                ...prev,
-                showBlueprintOverlay: prev.showBlueprintOverlay === false,
-              }))
-            }
-            blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
-            onChangeBlueprintOpacity={(opacity) =>
-              setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
-            }
-          />
-        </div>
+        {isRightPanelOpen && (
+          <div className="w-80 border-l border-[#eae4dc] dark:border-[#39342f] h-full hidden sm:block shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19]">
+            <CadPropertiesPanel
+              selectedObject={selectedObject}
+              objectData={selectedData}
+              onUpdateColor={handleUpdateColor}
+              onUpdateProperty={handleUpdateProperty}
+              onUpdateTransform={handleUpdateTransform}
+              onToggleVisibility={handleToggleVisibility}
+              onDeleteObject={handleDeleteObject}
+              project={modelProject}
+              taskId={activeTaskId}
+              onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
+              isComparing={showCompareOverlay}
+              onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
+              showBlueprint={editorState.showBlueprintOverlay !== false}
+              onToggleBlueprint={() =>
+                setEditorState((prev) => ({
+                  ...prev,
+                  showBlueprintOverlay: prev.showBlueprintOverlay === false,
+                }))
+              }
+              blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
+              onChangeBlueprintOpacity={(opacity) =>
+                setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
+              }
+              onCollapse={() => setIsRightPanelOpen(false)}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Delete Architectural Element Confirmation Modal (e.g. FloorSlab) */}
+      <Modal
+        isOpen={showDeleteElementModal}
+        onClose={() => {
+          setShowDeleteElementModal(false);
+          setObjectToDelete(null);
+        }}
+        title="Delete Architectural Element"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
+                Delete {objectToDelete?.name || "Foundation Slab"}?
+              </p>
+              <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1 leading-relaxed">
+                Are you sure you want to delete this {objectToDelete?.type || "element"}?
+                This will remove it from your project's editable scene and reveal underlying layers.
+                The original 3D model asset in storage and the source blueprint will not be modified, and you can undo this action at any time.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-[#eae4dc] dark:border-[#39342f]">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowDeleteElementModal(false);
+                setObjectToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleConfirmDeleteObject}
+              className="bg-red-600 hover:bg-red-700 text-white border-transparent"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+              <span>Delete {objectToDelete?.type === "floor" ? "Floor Slab" : "Element"}</span>
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Source Blueprint Modal */}
       <Modal

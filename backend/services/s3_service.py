@@ -274,6 +274,48 @@ class S3Service:
             logger.error(f"Failed to generate S3 presigned URL for {clean_key}: {e.__class__.__name__}")
             raise S3ServiceError("Failed to generate secure model download URL.")
 
+    def object_exists(self, object_key: str) -> bool:
+        """
+        Checks whether the specified object key exists in the S3 bucket.
+        Uses head_object to verify existence without downloading data.
+        Returns False if the object is missing or S3 is unconfigured.
+        """
+        if not self.is_configured():
+            return False
+
+        client = self._get_client()
+        if client is None or not object_key or not str(object_key).strip():
+            return False
+
+        clean_key = str(object_key).strip()
+        try:
+            client.head_object(Bucket=self.bucket_name, Key=clean_key)
+            return True
+        except ClientError as ce:
+            code = ce.response.get("Error", {}).get("Code")
+            if code in ("404", "NoSuchKey", "NotFound"):
+                return False
+            logger.warning(f"S3 head_object error checking {clean_key}: {code}")
+            return False
+        except Exception as e:
+            logger.warning(f"Unexpected error checking S3 object {clean_key}: {e}")
+            return False
+
+    def get_object_bytes(self, object_key: str) -> Optional[bytes]:
+        """Downloads and returns the raw bytes for an object from S3."""
+        if not self.is_configured():
+            return None
+        client = self._get_client()
+        if client is None or not object_key or not str(object_key).strip():
+            return None
+        clean_key = str(object_key).strip()
+        try:
+            resp = client.get_object(Bucket=self.bucket_name, Key=clean_key)
+            return resp["Body"].read()
+        except Exception as e:
+            logger.error(f"Failed to fetch S3 object bytes for {clean_key}: {e}")
+            return None
+
     def delete_object(self, object_key: str) -> bool:
         """
         Deletes a model object from S3.

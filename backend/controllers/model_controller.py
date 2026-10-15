@@ -1,7 +1,8 @@
 import time
 import os
 import uuid
-from flask import request, jsonify, send_from_directory
+import json
+from flask import request, jsonify, send_from_directory, Response
 from werkzeug.utils import secure_filename
 from backend.config.config import UPLOAD_FOLDER, OUTPUT_FOLDER, resolve_blender_path, is_production_environment
 from backend.schemas.validation import allowed_file, parse_upload_params
@@ -303,6 +304,36 @@ class ModelController:
 
         task_data = task_repository.get(task_id)
         if not task_data:
+            # Check if project exists in MongoDB as completed (e.g. after server restart or on ephemeral storage)
+            if mongo_manager.is_configured():
+                try:
+                    project = project_repository.get_project(task_id, owner_id=owner_id)
+                    if project:
+                        reconstructed = {
+                            "status": project.get("status", "completed"),
+                            "progress": 100 if project.get("status") == "completed" else 0,
+                            "model_file": f"{task_id}_model.glb",
+                            "owner_id": owner_id,
+                            "analysis": project.get("analysis") or {
+                                "pipeline": project.get("pipeline", "standard"),
+                            },
+                            "customization": project.get("customization") or {},
+                            "source_file": {
+                                "filename": project.get("source_filename") or f"{task_id}.png",
+                                "type": project.get("type", "model"),
+                                "has_source": bool(project.get("blueprint_ref")),
+                                "download_url": f"/api/source/{task_id}",
+                            },
+                        }
+                        if project.get("model_ref"):
+                            reconstructed["s3_key"] = project["model_ref"].get("key")
+                            reconstructed["s3_bucket"] = project["model_ref"].get("bucket")
+                            reconstructed["storage_provider"] = "s3"
+                        task_repository.set(task_id, reconstructed)
+                        return jsonify(reconstructed), 200
+                except Exception as mongo_err:
+                    print(f"[STATUS] Notice checking MongoDB project fallback: {mongo_err}")
+
             return jsonify({"status": "error", "progress": 0, "error": "Task not found"}), 200
 
         task_owner = task_data.get("owner_id")
@@ -312,11 +343,19 @@ class ModelController:
         if is_production_environment() and not task_owner and not mongo_manager.is_configured():
             return jsonify({"status": "error", "progress": 0, "error": "Task not found"}), 200
 
+        if mongo_manager.is_configured():
+            try:
+                proj = project_repository.get_project(task_id, owner_id=owner_id)
+                if proj and proj.get("customization"):
+                    task_data["customization"] = proj.get("customization")
+            except Exception:
+                pass
+
         return jsonify(task_data)
 
     @staticmethod
     def download_model(filename: str):
-        """Streams a local GLB model file with ownership verification."""
+        """Streams a local GLB model file with ownership verification, falling back to S3 if not on disk."""
         user = get_authenticated_user(request)
         if user is None:
             return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
@@ -343,12 +382,47 @@ class ModelController:
                 if task_owner and task_owner != owner_id:
                     return jsonify({"error": "Forbidden", "message": "You do not have permission to access this model"}), 403
 
-        try:
+        local_path = os.path.join(OUTPUT_FOLDER, safe_filename)
+        if os.path.exists(local_path):
             return send_from_directory(
                 OUTPUT_FOLDER, safe_filename, as_attachment=False
             )
-        except FileNotFoundError:
-            return jsonify({"error": "File not found"}), 404
+
+        # Fallback: Stream directly from S3 if local file is absent from outputs directory
+        if task_id and s3_service.is_configured():
+            s3_key = None
+            if mongo_manager.is_configured():
+                try:
+                    assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
+                    for asset in assets:
+                        if asset.get("asset_type") == "3d_model" and asset.get("storage_provider") == "s3":
+                            s3_key = asset.get("storage_key")
+                            break
+                    if not s3_key:
+                        proj = project_repository.get_project(task_id, owner_id=owner_id)
+                        if proj and proj.get("model_ref"):
+                            s3_key = proj["model_ref"].get("key")
+                except Exception as e:
+                    print(f"[MODEL_DOWNLOAD] Notice looking up S3 asset in Mongo: {e}")
+
+            if not s3_key and task_data and task_data.get("s3_key"):
+                s3_key = task_data.get("s3_key")
+
+            if s3_key:
+                try:
+                    glb_bytes = s3_service.get_object_bytes(s3_key)
+                    if glb_bytes:
+                        return Response(
+                            glb_bytes,
+                            mimetype="model/gltf-binary",
+                            headers={
+                                "Content-Disposition": f'inline; filename="{safe_filename}"',
+                            },
+                        )
+                except Exception as s3_fetch_err:
+                    print(f"[MODEL_DOWNLOAD] S3 stream fallback error: {s3_fetch_err}")
+
+        return jsonify({"error": "File not found"}), 404
 
     @staticmethod
     def download_source(task_id: str):
@@ -417,25 +491,82 @@ class ModelController:
             elif project_owner != owner_id:
                 return jsonify({"error": "Forbidden", "message": "You do not have permission to access this model"}), 403
 
-            # Check if project has an S3 3D model asset in MongoDB
+            # Check if project has an active model_ref or S3 3D model asset in MongoDB
             try:
-                assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
-                for asset in assets:
-                    if (
-                        asset.get("asset_type") == "3d_model"
-                        and asset.get("storage_provider") == "s3"
-                        and asset.get("storage_key")
-                    ):
-                        if s3_service.is_configured():
-                            storage_key = asset["storage_key"]
+                # 1. First check the active model_ref on the project document (ensures edited model is preferred over original)
+                proj = project_repository.get_project(task_id, owner_id=owner_id)
+                if proj and proj.get("model_ref"):
+                    model_ref = proj["model_ref"]
+                    storage_provider = model_ref.get("storage_provider", "s3")
+                    if storage_provider == "s3" and s3_service.is_configured():
+                        storage_key = model_ref.get("key")
+                        if storage_key:
+                            if not s3_service.object_exists(storage_key):
+                                local_path = os.path.join(OUTPUT_FOLDER, f"{task_id}_model.glb")
+                                if os.path.exists(local_path):
+                                    return jsonify({
+                                        "success": True,
+                                        "storage_provider": "local",
+                                        "url": f"/api/download/{task_id}_model.glb",
+                                        "filename": f"{task_id}_model.glb",
+                                    }), 200
+                                return jsonify({
+                                    "error": "Model artifact not found in storage",
+                                    "message": f"The 3D model object '{storage_key}' does not exist in S3 storage.",
+                                    "code": "OBJECT_NOT_FOUND",
+                                }), 404
+
                             presigned_url = s3_service.generate_presigned_url(storage_key, expiry_seconds=900)
                             return jsonify({
                                 "success": True,
                                 "storage_provider": "s3",
                                 "url": presigned_url,
                                 "expires_in": 900,
-                                "filename": asset.get("filename", f"{task_id}_model.glb"),
+                                "filename": os.path.basename(storage_key),
                             }), 200
+                    elif storage_provider == "local":
+                        model_filename = model_ref.get("model_file", f"{task_id}_model.glb")
+                        return jsonify({
+                            "success": True,
+                            "storage_provider": "local",
+                            "url": f"/api/download/{model_filename}",
+                            "filename": model_filename,
+                        }), 200
+
+                # 2. Check assets collection, picking the latest 3d_model asset
+                assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
+                model_assets = [
+                    a for a in assets
+                    if a.get("asset_type") == "3d_model" and a.get("storage_key")
+                ]
+                if model_assets:
+                    latest_asset = model_assets[-1]
+                    if latest_asset.get("storage_provider") == "s3" and s3_service.is_configured():
+                        storage_key = latest_asset["storage_key"]
+                        if not s3_service.object_exists(storage_key):
+                            model_filename = latest_asset.get("filename", f"{task_id}_model.glb")
+                            local_path = os.path.join(OUTPUT_FOLDER, model_filename)
+                            if os.path.exists(local_path):
+                                return jsonify({
+                                    "success": True,
+                                    "storage_provider": "local",
+                                    "url": f"/api/download/{model_filename}",
+                                    "filename": model_filename,
+                                }), 200
+                            return jsonify({
+                                "error": "Model artifact not found in storage",
+                                "message": f"The 3D model object '{storage_key}' does not exist in S3 storage.",
+                                "code": "OBJECT_NOT_FOUND",
+                            }), 404
+
+                        presigned_url = s3_service.generate_presigned_url(storage_key, expiry_seconds=900)
+                        return jsonify({
+                            "success": True,
+                            "storage_provider": "s3",
+                            "url": presigned_url,
+                            "expires_in": 900,
+                            "filename": latest_asset.get("filename", f"{task_id}_model.glb"),
+                        }), 200
             except Exception as e:
                 print(f"[MODEL_URL] Notice checking MongoDB assets: {e}")
 
@@ -448,7 +579,23 @@ class ModelController:
 
             if task_data.get("s3_key") and s3_service.is_configured():
                 try:
-                    presigned_url = s3_service.generate_presigned_url(task_data["s3_key"], expiry_seconds=900)
+                    storage_key = task_data["s3_key"]
+                    if not s3_service.object_exists(storage_key):
+                        local_path = os.path.join(OUTPUT_FOLDER, task_data.get("model_file", f"{task_id}_model.glb"))
+                        if os.path.exists(local_path):
+                            return jsonify({
+                                "success": True,
+                                "storage_provider": "local",
+                                "url": f"/api/download/{os.path.basename(local_path)}",
+                                "filename": os.path.basename(local_path),
+                            }), 200
+                        return jsonify({
+                            "error": "Model artifact not found in storage",
+                            "message": f"The 3D model object '{storage_key}' does not exist in S3 storage.",
+                            "code": "OBJECT_NOT_FOUND",
+                        }), 404
+
+                    presigned_url = s3_service.generate_presigned_url(storage_key, expiry_seconds=900)
                     return jsonify({
                         "success": True,
                         "storage_provider": "s3",
@@ -468,6 +615,16 @@ class ModelController:
                     "url": f"/api/download/{model_filename}",
                     "filename": model_filename,
                 }), 200
+
+        # Ephemeral restart fallback for existing local files
+        fallback_local = os.path.join(OUTPUT_FOLDER, f"{task_id}_model.glb")
+        if os.path.exists(fallback_local):
+            return jsonify({
+                "success": True,
+                "storage_provider": "local",
+                "url": f"/api/download/{task_id}_model.glb",
+                "filename": f"{task_id}_model.glb",
+            }), 200
 
         return jsonify({"error": "Model not found"}), 404
 
@@ -608,6 +765,142 @@ class ModelController:
             return jsonify({"error": str(e)}), 503
         except Exception as e:
             return jsonify({"error": "Failed to generate authorization signature"}), 500
+
+    @staticmethod
+    def save_project(task_id: str):
+        """
+        Saves CAD project customization and/or edited 3D model geometry.
+        Enforces server-side authentication and owner-scoping.
+        If an edited GLB file is uploaded:
+            - Uploads to S3 under an owner-scoped key without overwriting original.
+            - Updates MongoDB asset records and project model_ref only after upload succeeds.
+        If customization metadata is provided:
+            - Updates project customization in MongoDB and task repository.
+        """
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
+
+        owner_id = user["user_id"]
+
+        if mongo_manager.is_configured():
+            try:
+                project_owner = project_repository.get_project_owner(task_id)
+            except Exception as e:
+                print(f"[SAVE] Error checking project ownership: {e}")
+                return jsonify({"error": f"Database error verifying project: {str(e)}"}), 500
+
+            if project_owner is None:
+                if is_production_environment():
+                    return jsonify({"error": "Project not found"}), 404
+                if not task_repository.exists(task_id):
+                    return jsonify({"error": "Project not found"}), 404
+            elif project_owner != owner_id:
+                return jsonify({"error": "Forbidden", "message": "You do not have permission to modify this project"}), 403
+        else:
+            task_data = task_repository.get(task_id)
+            if not task_data:
+                return jsonify({"error": "Project not found"}), 404
+            task_owner = task_data.get("owner_id")
+            if task_owner and task_owner != owner_id:
+                return jsonify({"error": "Forbidden", "message": "You do not have permission to modify this project"}), 403
+
+        # Parse request body (JSON or multipart form-data)
+        customization = None
+        if request.is_json:
+            json_data = request.get_json(silent=True) or {}
+            customization = json_data.get("customization")
+        else:
+            if "customization" in request.form:
+                try:
+                    customization = json.loads(request.form["customization"])
+                except Exception:
+                    customization = request.form["customization"]
+
+        # Check if an edited GLB file was uploaded
+        edited_file = request.files.get("file") or request.files.get("model_file")
+        s3_res = None
+        if edited_file and edited_file.filename:
+            file_bytes = edited_file.read()
+            if not file_bytes:
+                return jsonify({"error": "Uploaded model file is empty"}), 400
+
+            if s3_service.is_configured():
+                try:
+                    # Upload new artifact under an owner-scoped key, preserving original model
+                    timestamp = int(time.time())
+                    model_id = f"{task_id}_edited_{timestamp}"
+                    s3_res = s3_service.upload_model(
+                        file_path_or_bytes=file_bytes,
+                        owner_id=owner_id,
+                        project_id=task_id,
+                        model_id=model_id,
+                    )
+                    # Verify object exists in S3 before updating MongoDB
+                    if not s3_service.object_exists(s3_res["key"]):
+                        raise S3ServiceError("Failed to verify uploaded S3 object existence.")
+                except Exception as s3_err:
+                    print(f"[SAVE] Failed to upload edited model to S3: {s3_err}")
+                    return jsonify({"error": "Failed to upload edited model to S3 storage", "details": str(s3_err)}), 500
+            else:
+                # Local storage fallback
+                edited_filename = f"{task_id}_edited.glb"
+                local_path = os.path.join(OUTPUT_FOLDER, edited_filename)
+                with open(local_path, "wb") as f:
+                    f.write(file_bytes)
+                s3_res = {"storage_provider": "local", "model_file": edited_filename}
+
+        # Prepare updates for MongoDB and task repository
+        updates = {}
+        if customization is not None:
+            updates["customization"] = customization
+
+        if s3_res:
+            if s3_res.get("storage_provider") == "s3":
+                updates["model_ref"] = s3_res
+                # Record asset in MongoDB
+                if mongo_manager.is_configured():
+                    try:
+                        project_repository.record_asset(
+                            {
+                                "asset_id": f"s3_model_edited_{task_id}_{int(time.time())}",
+                                "project_id": task_id,
+                                "asset_type": "3d_model",
+                                "storage_provider": "s3",
+                                "storage_key": s3_res["key"],
+                                "bucket": s3_res["bucket"],
+                                "filename": f"{task_id}_edited.glb",
+                                "file_size": s3_res.get("size", 0),
+                                "format": "glb",
+                            },
+                            owner_id=owner_id,
+                        )
+                    except Exception as asset_err:
+                        print(f"[SAVE] Notice recording edited asset in MongoDB: {asset_err}")
+            else:
+                updates["model_file"] = s3_res.get("model_file")
+
+        if mongo_manager.is_configured():
+            try:
+                if updates:
+                    project_repository.update_project(task_id, updates, owner_id=owner_id)
+            except Exception as db_err:
+                print(f"[SAVE] Failed to update project in MongoDB: {db_err}")
+                return jsonify({"error": "Database error saving project"}), 500
+
+        # Update task repository in memory/disk
+        task_repository.update(task_id, updates)
+
+        response_payload = {
+            "success": True,
+            "message": "Project saved successfully",
+            "task_id": task_id,
+        }
+        if s3_res and s3_res.get("storage_provider") == "s3":
+            response_payload["s3_key"] = s3_res["key"]
+            response_payload["model_url"] = s3_service.generate_presigned_url(s3_res["key"])
+
+        return jsonify(response_payload), 200
 
     @staticmethod
     def delete_project(task_id: str):

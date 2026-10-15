@@ -3,6 +3,7 @@ import {
   Layers,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Eye,
   EyeOff,
   Search,
@@ -21,6 +22,7 @@ const SceneHierarchyPanel = ({
   onToggleVisibility,
   onToggleCategoryVisibility,
   categoryVisibility,
+  onCollapse,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedCategories, setExpandedCategories] = useState({
@@ -35,38 +37,43 @@ const SceneHierarchyPanel = ({
     setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
   };
 
+  const deletedSet = new Set(dynamicObjects?.deletedIds || []);
+
   const categories = [
     {
       key: "walls",
       label: "Walls",
       icon: Square,
-      items: dynamicObjects?.walls || [],
+      items: (dynamicObjects?.walls || []).filter((item) => !deletedSet.has(item.id)),
     },
     {
       key: "doors",
       label: "Doors",
       icon: DoorClosed,
-      items: dynamicObjects?.doors || [],
+      items: (dynamicObjects?.doors || []).filter((item) => !deletedSet.has(item.id)),
     },
     {
       key: "windows",
       label: "Windows",
       icon: AppWindow,
-      items: dynamicObjects?.windows || [],
+      items: (dynamicObjects?.windows || []).filter((item) => !deletedSet.has(item.id)),
     },
     {
       key: "rooms",
       label: "Rooms & Floors",
       icon: Layers,
-      items: dynamicObjects?.rooms || [],
+      items: [
+        ...(dynamicObjects?.rooms || []),
+        ...(dynamicObjects?.floors || []),
+      ].filter((item) => !deletedSet.has(item.id)),
     },
   ];
 
   return (
     <div className="flex flex-col h-full bg-[#fdfbf7] dark:bg-[#1d1b19] text-xs text-zinc-700 dark:text-[#b4ada3] divide-y divide-[#eae4dc] dark:divide-[#39342f]">
-      {/* Search Header */}
-      <div className="p-3">
-        <div className="relative">
+      {/* Search & Collapse Header */}
+      <div className="p-3 flex items-center gap-2">
+        <div className="relative flex-1">
           <Search className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65] absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
@@ -76,6 +83,17 @@ const SceneHierarchyPanel = ({
             className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] text-xs dark:text-[#f5f0e8] placeholder:text-zinc-400 dark:placeholder:text-[#746e65] focus:outline-orange-500"
           />
         </div>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Collapse Scene Outliner (Left Panel)"
+            aria-label="Collapse Scene Outliner"
+            className="p-1.5 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer shrink-0"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Hierarchy Tree */}
@@ -143,7 +161,7 @@ const SceneHierarchyPanel = ({
                             onSelectObject({
                               id: item.id,
                               name: item.name || item.id,
-                              type: key.slice(0, -1),
+                              type: item.type || (key === "rooms" ? "floor" : key.slice(0, -1)),
                             })
                           }
                         >

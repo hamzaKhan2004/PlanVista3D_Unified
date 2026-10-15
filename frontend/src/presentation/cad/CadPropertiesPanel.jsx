@@ -9,6 +9,7 @@ import {
   Compass,
   Info,
   Image as ImageIcon,
+  ChevronRight,
 } from "lucide-react";
 import { ARCHITECTURAL_SWATCHES } from "../../domain/cad/cadTypes";
 import Badge from "../ui/Badge";
@@ -32,10 +33,27 @@ const CadPropertiesPanel = ({
   onToggleBlueprint,
   blueprintOpacity = 0.65,
   onChangeBlueprintOpacity,
+  onCollapse,
 }) => {
   if (!selectedObject) {
     return (
       <div className="p-4 flex flex-col justify-between h-full overflow-y-auto space-y-4">
+        {onCollapse && (
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-[#39342f]/80">
+            <span className="text-[11px] font-semibold text-zinc-500 dark:text-[#746e65] uppercase tracking-wider">
+              Properties
+            </span>
+            <button
+              type="button"
+              onClick={onCollapse}
+              title="Collapse Property Inspector (Right Panel)"
+              aria-label="Collapse Property Inspector"
+              className="p-1 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <div className="p-4 text-center text-zinc-400 dark:text-[#746e65] flex flex-col items-center justify-center bg-zinc-50 dark:bg-[#141311] rounded-2xl border border-dashed border-zinc-200 dark:border-[#39342f]">
           <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-[#211f1d] flex items-center justify-center mb-2">
             <SlidersHorizontal className="w-5 h-5 text-zinc-400 dark:text-[#a88b7d]" />
@@ -109,6 +127,7 @@ const CadPropertiesPanel = ({
 
   const { id, name, type } = selectedObject;
   const isWall = type === "wall" || id.toLowerCase().includes("wall");
+  const isFloor = type === "floor" || id.toLowerCase().includes("floor") || id.toLowerCase().includes("slab");
   const isVisible = objectData?.visible !== false;
   const currentColor = objectData?.color || "#cccccc";
   const roughness = objectData?.roughness !== undefined ? objectData.roughness : 0.7;
@@ -150,17 +169,30 @@ const CadPropertiesPanel = ({
           <Badge variant="orange" className="capitalize">
             {type || "Element"}
           </Badge>
-          <button
-            onClick={() => onToggleVisibility(id)}
-            title={isVisible ? "Hide element" : "Show element"}
-            className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-              isVisible
-                ? "bg-white dark:bg-[#211f1d] text-zinc-600 dark:text-[#b4ada3] border-zinc-200 dark:border-[#39342f] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
-                : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-100"
-            }`}
-          >
-            {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => onToggleVisibility(id)}
+              title={isVisible ? "Hide element" : "Show element"}
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                isVisible
+                  ? "bg-white dark:bg-[#211f1d] text-zinc-600 dark:text-[#b4ada3] border-zinc-200 dark:border-[#39342f] hover:text-zinc-900 dark:hover:text-[#f5f0e8]"
+                  : "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 hover:bg-red-100"
+              }`}
+            >
+              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+            {onCollapse && (
+              <button
+                type="button"
+                onClick={onCollapse}
+                title="Collapse Property Inspector (Right Panel)"
+                aria-label="Collapse Property Inspector"
+                className="p-1.5 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
         <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-[#f5f0e8] truncate">{name}</h3>
         <span className="text-[11px] font-mono text-zinc-400 dark:text-[#746e65] block mt-0.5">{id}</span>
@@ -270,7 +302,7 @@ const CadPropertiesPanel = ({
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-1.5 font-semibold text-zinc-800 dark:text-[#b4ada3] text-[11px] uppercase tracking-wider">
           <Maximize className="w-3.5 h-3.5 text-orange-500" />
-          <span>{isWall ? "Wall Dimensions (Actual)" : "Coordinates & Dimensions"}</span>
+          <span>{isWall ? "Wall Dimensions (Actual)" : isFloor ? "Floor Coordinates & Dimensions" : "Coordinates & Dimensions"}</span>
         </div>
 
         {/* Position */}
@@ -313,7 +345,7 @@ const CadPropertiesPanel = ({
         {/* Real Dimensions: Length, Height, Thickness */}
         <div>
           <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">
-            {isWall ? "Wall Geometry (m)" : "Dimensions (m)"}
+            {isWall ? "Wall Geometry (m)" : isFloor ? "Floor Extents (m)" : "Dimensions (m)"}
           </label>
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -369,7 +401,7 @@ const CadPropertiesPanel = ({
           className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-900/40 dark:hover:bg-red-950/20 flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <Trash2 className="w-3.5 h-3.5" />
-          <span>{isWall ? "Delete Wall" : "Delete Element"}</span>
+          <span>{isWall ? "Delete Wall" : isFloor ? "Delete Floor Slab" : "Delete Element"}</span>
         </Button>
       </div>
 

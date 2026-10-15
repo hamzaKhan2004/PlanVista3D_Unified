@@ -10,6 +10,7 @@ api_bp.add_url_rule("/download/<filename>", view_func=ModelController.download_m
 api_bp.add_url_rule("/source/<task_id>", view_func=ModelController.download_source, methods=["GET"])
 api_bp.add_url_rule("/project/<task_id>/model-url", view_func=ModelController.get_model_url, methods=["GET"])
 api_bp.add_url_rule("/model/<task_id>/url", view_func=ModelController.get_model_url, methods=["GET"])
+api_bp.add_url_rule("/project/<task_id>", view_func=ModelController.save_project, methods=["PUT", "POST"])
 api_bp.add_url_rule("/project/<task_id>", view_func=ModelController.delete_project, methods=["DELETE"])
 api_bp.add_url_rule("/images/store-render", view_func=ModelController.store_rendered_image, methods=["POST"])
 api_bp.add_url_rule("/images/auth", view_func=ModelController.get_imagekit_auth, methods=["GET"])

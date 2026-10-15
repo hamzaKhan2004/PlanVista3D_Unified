@@ -18,8 +18,10 @@ import {
   TransformControls,
 } from "@react-three/drei";
 import * as THREE from "three";
+import { AlertTriangle } from "lucide-react";
 import { CAMERA_PRESETS, TRANSFORM_MODES } from "../../domain/cad/cadTypes";
 import { useTheme } from "../../presentation/layout/AppLayout";
+import { getPuterAuthToken } from "../../lib/api/modelApi";
 import {
   separateGeometryConnectedComponents,
   getMeshWallDimensions,
@@ -27,7 +29,12 @@ import {
   findSnapPoint,
 } from "../../domain/cad/cadGeometry";
 
-class ModelErrorBoundary extends React.Component {
+/**
+ * Safe 3D Model Error Boundary for React Three Fiber.
+ * Returns null inside the Three.js scene graph to avoid corrupting the R3F fiber tree
+ * and prevents mounting/unmounting Drei Html portal nodes during React 19 concurrent Suspense.
+ */
+class CanvasModelErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -36,22 +43,14 @@ class ModelErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
   componentDidCatch(error, errorInfo) {
-    console.warn("Failed to load 3D GLB model in viewport:", error, errorInfo);
+    console.warn("Failed to load 3D GLB model in Canvas:", error, errorInfo);
+    if (this.props.onError) {
+      this.props.onError(error);
+    }
   }
   render() {
     if (this.state.hasError) {
-      return (
-        <Html center>
-          <div className="flex flex-col items-center gap-2 p-5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md rounded-2xl border border-red-200 dark:border-red-900/50 shadow-xl max-w-sm text-center">
-            <span className="text-xs font-bold text-red-600 dark:text-red-400">
-              Model Artifact Unavailable
-            </span>
-            <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
-              The generated .GLB geometry artifact was not found on the server. Please verify the backend outputs directory.
-            </span>
-          </div>
-        </Html>
-      );
+      return null;
     }
     return this.props.children;
   }
@@ -76,21 +75,36 @@ const BlueprintGroundOverlay = ({
       return;
     }
     setHasError(false);
+    let isCurrent = true;
+    let loadedTex = null;
     const loader = new THREE.TextureLoader();
     loader.load(
       imageUrl,
       (tex) => {
+        if (!isCurrent) {
+          tex.dispose();
+          return;
+        }
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.generateMipmaps = true;
         tex.minFilter = THREE.LinearMipmapLinearFilter;
+        loadedTex = tex;
         setTexture(tex);
       },
       undefined,
       (err) => {
+        if (!isCurrent) return;
         console.warn("Source blueprint texture failed to load:", err);
         setHasError(true);
       }
     );
+
+    return () => {
+      isCurrent = false;
+      if (loadedTex) {
+        loadedTex.dispose();
+      }
+    };
   }, [imageUrl]);
 
   if (!visible || !texture || hasError) return null;
@@ -332,7 +346,21 @@ const EditableModel = ({
   wallHeight = 2.8,
   wallThickness = 0.25,
 }) => {
-  const { scene } = useGLTF(url);
+  const extendLoader = useCallback(
+    (loader) => {
+      const token = getPuterAuthToken();
+      if (
+        token &&
+        (url.startsWith("/") ||
+          (typeof window !== "undefined" && url.includes(window.location.origin)))
+      ) {
+        loader.setRequestHeader({ Authorization: `Bearer ${token}` });
+      }
+    },
+    [url]
+  );
+
+  const { scene } = useGLTF(url, false, false, extendLoader);
   const modelRef = useRef();
   const [hoveredObject, setHoveredObject] = useState(null);
   const [dynamicMeshes, setDynamicMeshes] = useState(new Map());
@@ -340,9 +368,34 @@ const EditableModel = ({
   const [activeSelectedMesh, setActiveSelectedMesh] = useState(null);
   const hasParsedScene = useRef(false);
 
+  useEffect(() => {
+    hasParsedScene.current = false;
+  }, [url]);
+
+  // Diagnostic log: Immediate scene state upon GLB load
+  useEffect(() => {
+    if (!scene) return;
+    let meshCount = 0;
+    scene.traverse((c) => {
+      if (c.isMesh) meshCount++;
+    });
+    const box = new THREE.Box3().setFromObject(scene);
+    console.log(
+      `[CAD_DIAGNOSTIC] GLB scene mesh count immediately after loading: ${meshCount}. BoundingBox: min=[${box.min.x.toFixed(
+        2
+      )}, ${box.min.y.toFixed(2)}, ${box.min.z.toFixed(2)}], max=[${box.max.x.toFixed(
+        2
+      )}, ${box.max.y.toFixed(2)}, ${box.max.z.toFixed(2)}]`
+    );
+    console.log(
+      `[CAD_DIAGNOSTIC] Fallback scene mounted: false. Default slab mounted: false. Base GLB scene active.`
+    );
+  }, [scene]);
+
   // 1. Initial Scene Setup: Separation of merged geometry & unique materials
   useEffect(() => {
     if (!scene) return;
+    console.log("[CAD_DIAGNOSTIC] Executing Effect 1: Scene setup & geometry parsing");
 
     // A. Separate composite merged wall geometry into distinct editable CAD objects (Req 1)
     const compositeMeshes = [];
@@ -375,10 +428,14 @@ const EditableModel = ({
         child.castShadow = true;
         child.receiveShadow = true;
 
+        const lower = child.name.toLowerCase();
+        const isFoundation = lower.includes("floor") || lower.includes("slab");
+
         // Center buffer geometry to local origin and set position to geometric center.
         // This prevents double-translation when position is updated/synced from dynamicObjects,
         // and ensures TransformControls gizmo is anchored directly at the wall's center.
-        if (child.geometry && child.geometry.attributes?.position && !child.userData._geometryCentered) {
+        // Foundation / FloorSlab geometry is already a calibrated Blender prism and must not be altered.
+        if (!isFoundation && child.geometry && child.geometry.attributes?.position && !child.userData._geometryCentered) {
           const box = new THREE.Box3().setFromObject(child);
           const center = new THREE.Vector3();
           box.getCenter(center);
@@ -386,6 +443,11 @@ const EditableModel = ({
           child.geometry.center();
           child.position.copy(center);
           child.userData._geometryCentered = true;
+          child.userData._originalCenter = center.clone();
+        } else if (child.userData._geometryCentered && child.userData._originalCenter && child.position.lengthSq() === 0) {
+          child.position.copy(child.userData._originalCenter);
+        } else if (isFoundation && !child.userData._originalCenter) {
+          child.userData._originalCenter = child.position.clone();
         }
       }
     });
@@ -396,6 +458,7 @@ const EditableModel = ({
       doors: [],
       windows: [],
       rooms: [],
+      foundation: [],
       bounds: { min: [-5, 0, -5], max: [5, 3, 5] },
     };
 
@@ -416,21 +479,32 @@ const EditableModel = ({
         if (lower.includes("wall")) cat = "walls";
         else if (lower.includes("door")) cat = "doors";
         else if (lower.includes("window")) cat = "windows";
-        else if (lower.includes("room") || lower.includes("floor")) cat = "rooms";
+        else if (lower.includes("floor") || lower.includes("slab")) cat = "rooms";
+        else if (lower.includes("room")) cat = "rooms";
 
         const dims = getMeshWallDimensions(child, wallHeight, wallThickness);
         const displayName = lower.includes("wall")
           ? `Wall ${++wallCounter}`
+          : (lower.includes("floor") || lower.includes("slab"))
+          ? (name === "FloorSlab" ? "Floor Slab" : name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()))
           : name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
         const colorHex = child.material?.color
           ? `#${child.material.color.getHexString()}`
           : "#cccccc";
 
+        const itemType = cat === "walls"
+          ? "wall"
+          : (lower.includes("floor") || lower.includes("slab"))
+          ? "floor"
+          : cat === "rooms"
+          ? "room"
+          : cat.slice(0, -1);
+
         discovered[cat]?.push({
           id: name,
           name: displayName,
-          type: cat === "walls" ? "wall" : cat === "rooms" ? "room" : cat.slice(0, -1),
+          type: itemType,
           visible: child.visible !== false,
           color: colorHex,
           roughness: child.material?.roughness ?? 0.7,
@@ -543,9 +617,26 @@ const EditableModel = ({
     });
   }, [scene, dynamicObjects, dynamicMeshes, editorState.showWireframe]);
 
+  // Clean up dynamic meshes and reset cursor when unmounting or switching models
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "default";
+      dynamicMeshes.forEach((mesh) => {
+        if (scene) scene.remove(mesh);
+        mesh.geometry?.dispose();
+        if (Array.isArray(mesh.material)) {
+          mesh.material.forEach((m) => m?.dispose());
+        } else {
+          mesh.material?.dispose();
+        }
+      });
+    };
+  }, [scene, dynamicMeshes]);
+
   // 4. Update material and visibility across all objects
   useEffect(() => {
     if (!scene) return;
+    console.log("[CAD_DIAGNOSTIC] Executing Effect 4: Updating materials and transforms across all objects");
 
     const allObjectsMap = new Map();
     [
@@ -556,9 +647,23 @@ const EditableModel = ({
       ...(dynamicObjects?.custom || []),
     ].forEach((o) => allObjectsMap.set(o.id, o));
 
+    const deletedSet = new Set(dynamicObjects?.deletedIds || []);
+
+    let visibleCount = 0;
+    let hiddenCount = 0;
+    let repositionedCount = 0;
+
     scene.traverse((child) => {
       if (child.isMesh) {
         const objectId = child.name;
+
+        // If this object was deleted, immediately hide it and skip further processing
+        if (deletedSet.has(objectId)) {
+          child.visible = false;
+          hiddenCount++;
+          return;
+        }
+
         const objectData = allObjectsMap.get(objectId);
 
         let objectType = "unknown";
@@ -566,28 +671,49 @@ const EditableModel = ({
         if (lower.includes("wall")) objectType = "wall";
         else if (lower.includes("door")) objectType = "door";
         else if (lower.includes("window")) objectType = "window";
-        else if (lower.includes("room") || lower.includes("floor")) objectType = "room";
+        else if (lower.includes("floor") || lower.includes("slab")) objectType = "floor";
+        else if (lower.includes("room")) objectType = "room";
 
         let categoryVisible = true;
         if (objectType === "wall" && editorState.wallsVisible === false) categoryVisible = false;
         if (objectType === "door" && editorState.doorsVisible === false) categoryVisible = false;
         if (objectType === "window" && editorState.windowsVisible === false) categoryVisible = false;
-        if (objectType === "room" && editorState.roomsVisible === false) categoryVisible = false;
+        if ((objectType === "room" || objectType === "floor") && editorState.roomsVisible === false) categoryVisible = false;
 
         // Apply visibility
         if (objectData && objectData.visible === false) {
           child.visible = false;
+          hiddenCount++;
         } else {
           child.visible = categoryVisible;
+          if (categoryVisible) visibleCount++;
+          else hiddenCount++;
         }
 
-        // Apply transforms if altered in inspector
+        // Apply transforms ONLY if intentionally altered in inspector or newly drawn
+        // Protect base meshes from dummy [0,0,0] origins
         if (objectData) {
-          if (objectData.position) {
+          const isDummyOrigin =
+            objectData.position &&
+            objectData.position[0] === 0 &&
+            objectData.position[1] === 0 &&
+            objectData.position[2] === 0 &&
+            !objectData.isEdited &&
+            !objectData.isNew;
+
+          if (objectData.position && !isDummyOrigin && (objectData.isEdited || objectData.isNew)) {
             child.position.set(objectData.position[0], objectData.position[1], objectData.position[2]);
+            repositionedCount++;
+          } else if (isDummyOrigin && child.userData._originalCenter) {
+            child.position.copy(child.userData._originalCenter);
           }
-          if (objectData.rotation) {
+
+          if (objectData.rotation && (objectData.isEdited || objectData.isNew)) {
             child.rotation.set(objectData.rotation[0], objectData.rotation[1], objectData.rotation[2]);
+          }
+
+          if (objectData.scale && (objectData.isEdited || objectData.isNew)) {
+            child.scale.set(objectData.scale[0], objectData.scale[1], objectData.scale[2]);
           }
         }
 
@@ -609,7 +735,7 @@ const EditableModel = ({
 
           child.material.wireframe = !!editorState.showWireframe;
 
-          // Emissive selection highlight (only the selected wall glows blue)
+          // Emissive selection highlight (only the selected element glows blue)
           if (selectedObject && child.name === selectedObject.id) {
             child.material.emissive = new THREE.Color(0x0088ff);
             child.material.emissiveIntensity = 0.55;
@@ -623,6 +749,15 @@ const EditableModel = ({
         }
       }
     });
+
+    const afterBox = new THREE.Box3().setFromObject(scene);
+    console.log(
+      `[CAD_DIAGNOSTIC] Effect 4 result: Visible meshes: ${visibleCount}, Hidden: ${hiddenCount}, Repositioned: ${repositionedCount}. Post-customization BoundingBox: min=[${afterBox.min.x.toFixed(
+        2
+      )}, ${afterBox.min.y.toFixed(2)}, ${afterBox.min.z.toFixed(2)}], max=[${afterBox.max.x.toFixed(
+        2
+      )}, ${afterBox.max.y.toFixed(2)}, ${afterBox.max.z.toFixed(2)}]`
+    );
   }, [
     scene,
     editingMode,
@@ -637,6 +772,9 @@ const EditableModel = ({
     event.stopPropagation();
     const objectName = event.object.name;
 
+    const deletedSet = new Set(dynamicObjects?.deletedIds || []);
+    if (deletedSet.has(objectName)) return;
+
     let objectType = "element";
     let displayName = objectName;
     const lower = objectName.toLowerCase();
@@ -650,7 +788,10 @@ const EditableModel = ({
     } else if (lower.includes("window")) {
       objectType = "window";
       displayName = objectName.replace("window_", "Window ");
-    } else if (lower.includes("room") || lower.includes("floor")) {
+    } else if (lower.includes("floor") || lower.includes("slab")) {
+      objectType = "floor";
+      displayName = objectName === "FloorSlab" ? "Floor Slab" : objectName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    } else if (lower.includes("room")) {
       objectType = "room";
       displayName = objectName.replace("room_", "Room ");
     }
@@ -844,6 +985,28 @@ const CadViewport = forwardRef(
     const cameraRef = useRef();
     const { theme } = useTheme();
     const isDark = theme === "dark";
+    const [modelError, setModelError] = useState(null);
+    const [isLoadingModel, setIsLoadingModel] = useState(Boolean(modelUrl));
+
+    // Reset error state and trigger loading indicator when modelUrl changes
+    useEffect(() => {
+      setModelError(null);
+      setIsLoadingModel(Boolean(modelUrl));
+    }, [modelUrl]);
+
+    const handleModelError = useCallback((err) => {
+      setIsLoadingModel(false);
+      setModelError(err);
+    }, []);
+
+    const handleLoaded = useCallback(
+      (data) => {
+        setIsLoadingModel(false);
+        setModelError(null);
+        onModelLoaded?.(data);
+      },
+      [onModelLoaded]
+    );
 
     useImperativeHandle(ref, () => ({
       resetCamera: () => cameraRef.current?.resetCamera(),
@@ -866,6 +1029,47 @@ const CadViewport = forwardRef(
             >
               Cancel (Esc)
             </button>
+          </div>
+        )}
+
+        {/* Loading Indicator DOM Overlay (safe outside Canvas) */}
+        {isLoadingModel && !modelError && modelUrl && (
+          <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2 p-4 bg-white/90 dark:bg-[#1d1b19]/90 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-[#39342f] shadow-xl animate-in fade-in duration-200">
+              <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-semibold text-zinc-800 dark:text-[#f5f0e8]">
+                Mounting 3D Geometry...
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Model Load Error DOM Overlay (safe outside Canvas) */}
+        {modelError && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center p-6 bg-[#f4eee6]/80 dark:bg-[#141311]/80 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="flex flex-col items-center gap-3 p-5 bg-white/95 dark:bg-[#1d1b19]/95 backdrop-blur-md rounded-2xl border border-red-200 dark:border-red-900/50 shadow-2xl max-w-sm text-center">
+              <div className="w-9 h-9 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-bold text-red-600 dark:text-red-400">
+                Model Geometry Unavailable
+              </span>
+              <span className="text-[11px] text-zinc-600 dark:text-zinc-300">
+                {modelError?.message?.includes("Failed to fetch")
+                  ? "Failed to fetch model from storage. Please verify S3 CORS and network connectivity."
+                  : modelError?.message || "The 3D model could not be loaded."}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setModelError(null);
+                  setIsLoadingModel(true);
+                }}
+                className="mt-1 px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold cursor-pointer shadow-md transition-all"
+              >
+                Retry Loading
+              </button>
+            </div>
           </div>
         )}
 
@@ -899,28 +1103,18 @@ const CadViewport = forwardRef(
             />
           )}
 
-          <Suspense
-            fallback={
-              <Html center>
-                <div className="flex flex-col items-center gap-2 p-4 bg-white/90 dark:bg-[#1d1b19]/90 backdrop-blur-md rounded-2xl border border-zinc-200 dark:border-[#39342f] shadow-xl">
-                  <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs font-semibold text-zinc-800 dark:text-[#f5f0e8]">
-                    Mounting 3D Geometry...
-                  </span>
-                </div>
-              </Html>
-            }
-          >
+          <Suspense fallback={null}>
             {modelUrl && (
-              <ModelErrorBoundary>
+              <CanvasModelErrorBoundary key={modelUrl} onError={handleModelError}>
                 <EditableModel
+                  key={modelUrl}
                   url={modelUrl}
                   blueprintUrl={blueprintUrl}
                   editorState={editorState}
                   dynamicObjects={dynamicObjects}
                   selectedObject={selectedObject}
                   onObjectSelect={onObjectSelect}
-                  onModelLoaded={onModelLoaded}
+                  onModelLoaded={handleLoaded}
                   onTransformChange={onTransformChange}
                   transformMode={transformMode}
                   controlsRef={cameraRef}
@@ -930,7 +1124,7 @@ const CadViewport = forwardRef(
                   wallHeight={wallHeight}
                   wallThickness={wallThickness}
                 />
-              </ModelErrorBoundary>
+              </CanvasModelErrorBoundary>
             )}
             <Environment preset="apartment" />
           </Suspense>
