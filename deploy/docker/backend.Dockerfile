@@ -9,17 +9,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PORT=5000
 ENV BLENDER_PATH=/usr/bin/blender
 
-# Install system dependencies, Python 3.11/pip, and Headless Blender runtime
+ENV PYTHON_SITE_PACKAGES=/usr/local/lib/python3.10/dist-packages
+ENV PYTHONPATH=/usr/local/lib/python3.10/dist-packages
+
+# Install system dependencies, native Python 3.10, and Headless Blender runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
     curl \
     ca-certificates \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 \
-    python3.11-venv \
-    python3.11-distutils \
+    python3 \
     python3-pip \
+    python3-venv \
     blender \
     libgl1 \
     libegl1 \
@@ -31,9 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Set python3.11 as default python3
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+# Symlink python to python3
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
 
@@ -42,8 +40,9 @@ COPY backend/requirements.txt /app/backend/requirements.txt
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel \
     && python3 -m pip install --no-cache-dir -r /app/backend/requirements.txt
 
-# Also install ezdxf into Blender's bundled python if Blender uses its own site-packages
-RUN /usr/bin/blender --background --python-expr "import sys, subprocess; subprocess.run([sys.executable, '-m', 'pip', 'install', 'ezdxf'])" || true
+# Verify Blender installation and that Blender can import all required dependencies for model generation
+RUN /usr/bin/blender --version \
+    && /usr/bin/blender --background --python-expr "import bpy, bmesh, mathutils, ezdxf, json; print('[DOCKER_BUILD] Blender environment verified. ezdxf version:', ezdxf.__version__)"
 
 # Copy backend source code
 COPY backend/ /app/backend/
