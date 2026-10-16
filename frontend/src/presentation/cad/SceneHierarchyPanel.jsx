@@ -18,7 +18,9 @@ import Badge from "../ui/Badge";
 const SceneHierarchyPanel = ({
   dynamicObjects,
   selectedObjectId,
+  selectedObjectIds = [],
   onSelectObject,
+  onClearSelection,
   onToggleVisibility,
   onToggleCategoryVisibility,
   categoryVisibility,
@@ -96,6 +98,24 @@ const SceneHierarchyPanel = ({
         )}
       </div>
 
+      {/* Active Multi-Selection Bar */}
+      {selectedObjectIds.length > 0 && (
+        <div className="px-3 py-1.5 bg-orange-50 dark:bg-[#ff7417]/10 flex items-center justify-between border-b border-orange-100 dark:border-[#ff7417]/20 text-[11px]">
+          <span className="font-semibold text-orange-800 dark:text-[#ff7417]">
+            {selectedObjectIds.length} element{selectedObjectIds.length > 1 ? "s" : ""} selected
+          </span>
+          {onClearSelection && (
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="text-orange-600 dark:text-[#ff7417] hover:underline font-semibold cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Hierarchy Tree */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
         {categories.map(({ key, label, icon: Icon, items }) => {
@@ -146,24 +166,32 @@ const SceneHierarchyPanel = ({
                     </div>
                   ) : (
                     filteredItems.map((item) => {
-                      const isSelected = selectedObjectId === item.id;
+                      const isMulti = selectedObjectIds.includes(item.id);
+                      const isPrimary = selectedObjectId === item.id;
+                      const isSelected = isPrimary || isMulti;
                       const isVisible = item.visible !== false;
 
                       return (
                         <div
                           key={item.id}
                           className={`flex items-center justify-between px-3 py-1.5 transition-colors cursor-pointer ${
-                            isSelected
-                              ? "bg-orange-50/80 dark:bg-[#ff7417]/15 text-orange-900 dark:text-[#ff7417] font-semibold"
+                            isPrimary
+                              ? "bg-orange-100/90 dark:bg-[#ff7417]/25 text-orange-950 dark:text-[#f5f0e8] font-semibold border-l-2 border-orange-500"
+                              : isSelected
+                              ? "bg-orange-50 dark:bg-[#ff7417]/15 text-orange-900 dark:text-[#ff7417] font-medium border-l-2 border-orange-400"
                               : "hover:bg-zinc-50 dark:hover:bg-[#2b2a27]/60 text-zinc-600 dark:text-[#e6e2de]"
                           }`}
-                          onClick={() =>
-                            onSelectObject({
-                              id: item.id,
-                              name: item.name || item.id,
-                              type: item.type || (key === "rooms" ? "floor" : key.slice(0, -1)),
-                            })
-                          }
+                          onClick={(e) => {
+                            const isModifierDown = Boolean(e.ctrlKey || e.metaKey);
+                            onSelectObject(
+                              {
+                                id: item.id,
+                                name: item.name || item.id,
+                                type: item.type || (key === "rooms" ? "floor" : key.slice(0, -1)),
+                              },
+                              isModifierDown
+                            );
+                          }}
                         >
                           <div className="flex items-center gap-2 truncate">
                             <span

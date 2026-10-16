@@ -335,6 +335,7 @@ const EditableModel = ({
   dynamicObjects,
   onObjectSelect,
   selectedObject,
+  selectedObjectIds = [],
   onModelLoaded,
   onTransformChange,
   transformMode,
@@ -735,10 +736,16 @@ const EditableModel = ({
 
           child.material.wireframe = !!editorState.showWireframe;
 
-          // Emissive selection highlight (only the selected element glows blue)
-          if (selectedObject && child.name === selectedObject.id) {
+          // Emissive selection highlight (primary glows bright blue, multi-selected elements glow cyan)
+          const isPrimarySelected = selectedObject && child.name === selectedObject.id;
+          const isMultiSelected = selectedObjectIds && selectedObjectIds.includes(child.name);
+
+          if (isPrimarySelected) {
             child.material.emissive = new THREE.Color(0x0088ff);
-            child.material.emissiveIntensity = 0.55;
+            child.material.emissiveIntensity = 0.65;
+          } else if (isMultiSelected) {
+            child.material.emissive = new THREE.Color(0x00bfff);
+            child.material.emissiveIntensity = 0.45;
           } else if (hoveredObject === child.name) {
             child.material.emissive = new THREE.Color(0x334455);
             child.material.emissiveIntensity = 0.25;
@@ -763,14 +770,27 @@ const EditableModel = ({
     editingMode,
     editorState,
     selectedObject,
+    selectedObjectIds,
     hoveredObject,
     dynamicObjects,
   ]);
 
   const handleClick = (event) => {
-    if (!editingMode || isDrawingWall || !event.object) return;
+    if (!editingMode || isDrawingWall || !event.object || !event.object.isMesh) return;
     event.stopPropagation();
     const objectName = event.object.name;
+
+    // Selection safety: ignore helpers, grids, cameras, lights, and transform controls
+    if (
+      !objectName ||
+      objectName === "Grid" ||
+      objectName.startsWith("TransformControls") ||
+      objectName.includes("Helper") ||
+      objectName.includes("Camera") ||
+      objectName.includes("Light")
+    ) {
+      return;
+    }
 
     const deletedSet = new Set(dynamicObjects?.deletedIds || []);
     if (deletedSet.has(objectName)) return;
@@ -796,12 +816,22 @@ const EditableModel = ({
       displayName = objectName.replace("room_", "Room ");
     }
 
-    onObjectSelect({
-      id: objectName,
-      name: displayName,
-      type: objectType,
-      mesh: event.object,
-    });
+    const isMulti = Boolean(
+      event.nativeEvent?.ctrlKey ||
+      event.nativeEvent?.metaKey ||
+      event.ctrlKey ||
+      event.metaKey
+    );
+
+    onObjectSelect(
+      {
+        id: objectName,
+        name: displayName,
+        type: objectType,
+        mesh: event.object,
+      },
+      isMulti
+    );
   };
 
   const handlePointerOver = (event) => {
@@ -970,6 +1000,7 @@ const CadViewport = forwardRef(
       editorState,
       dynamicObjects,
       selectedObject,
+      selectedObjectIds = [],
       onObjectSelect,
       transformMode,
       isDrawingWall,
@@ -1113,6 +1144,7 @@ const CadViewport = forwardRef(
                   editorState={editorState}
                   dynamicObjects={dynamicObjects}
                   selectedObject={selectedObject}
+                  selectedObjectIds={selectedObjectIds}
                   onObjectSelect={onObjectSelect}
                   onModelLoaded={handleLoaded}
                   onTransformChange={onTransformChange}

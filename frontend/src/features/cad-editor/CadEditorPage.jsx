@@ -52,6 +52,10 @@ import {
   VisibilityChangeCommand,
   AddElementCommand,
   DeleteElementCommand,
+  BatchColorChangeCommand,
+  BatchMaterialPropertyCommand,
+  BatchVisibilityChangeCommand,
+  BatchDeleteElementsCommand,
 } from "../../domain/cad/cadCommand";
 import {
   CAMERA_PRESETS,
@@ -109,8 +113,15 @@ const CadEditorPage = () => {
   });
 
   const [selectedObject, setSelectedObject] = useState(null);
+  const [selectedObjects, setSelectedObjects] = useState([]);
+  const [elementsToDelete, setElementsToDelete] = useState([]);
   const [commandManager] = useState(() => new CommandManager());
   const [commandState, setCommandState] = useState(commandManager.getState());
+
+  const selectedObjectIds = useMemo(
+    () => selectedObjects.map((o) => o.id),
+    [selectedObjects]
+  );
 
   const viewportRef = useRef(null);
   const nextIdCounter = useRef(1);
@@ -445,6 +456,54 @@ const CadEditorPage = () => {
     return all.find((o) => o.id === selectedObject.id) || null;
   };
 
+  const allSelectedData = useMemo(() => {
+    if (!selectedObjects || selectedObjects.length === 0) return [];
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const map = new Map(all.map((o) => [o.id, o]));
+    return selectedObjects.map((o) => map.get(o.id)).filter(Boolean);
+  }, [selectedObjects, dynamicObjects]);
+
+  // Object selection handler (supports single click & ctrl/cmd multi-select)
+  const handleObjectSelect = (element, isMulti = false) => {
+    if (!element) {
+      setSelectedObject(null);
+      setSelectedObjects([]);
+      return;
+    }
+
+    if (isMulti) {
+      setSelectedObjects((prev) => {
+        const exists = prev.some((o) => o.id === element.id);
+        let next;
+        if (exists) {
+          next = prev.filter((o) => o.id !== element.id);
+        } else {
+          next = [...prev, element];
+        }
+        if (next.length > 0) {
+          setSelectedObject(next[next.length - 1]);
+        } else {
+          setSelectedObject(null);
+        }
+        return next;
+      });
+    } else {
+      setSelectedObject(element);
+      setSelectedObjects([element]);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedObject(null);
+    setSelectedObjects([]);
+  };
+
   // Internal state modifiers (called by commands)
   const applyColor = (objectId, color) => {
     setDynamicObjects((prev) => {
@@ -456,6 +515,23 @@ const CadEditorPage = () => {
         windows: updateList(prev.windows),
         rooms: updateList(prev.rooms),
         custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
+      };
+    });
+  };
+
+  const applyBatchColors = (colorUpdates) => {
+    const colorMap = new Map(colorUpdates.map((u) => [u.id, u.color]));
+    setDynamicObjects((prev) => {
+      const updateList = (list) =>
+        list.map((o) => (colorMap.has(o.id) ? { ...o, color: colorMap.get(o.id), isEdited: true } : o));
+      return {
+        walls: updateList(prev.walls),
+        doors: updateList(prev.doors),
+        windows: updateList(prev.windows),
+        rooms: updateList(prev.rooms),
+        custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
       };
     });
   };
@@ -470,6 +546,23 @@ const CadEditorPage = () => {
         windows: updateList(prev.windows),
         rooms: updateList(prev.rooms),
         custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
+      };
+    });
+  };
+
+  const applyBatchProperty = (property, valueUpdates) => {
+    const valMap = new Map(valueUpdates.map((u) => [u.id, u.value]));
+    setDynamicObjects((prev) => {
+      const updateList = (list) =>
+        list.map((o) => (valMap.has(o.id) ? { ...o, [property]: valMap.get(o.id), isEdited: true } : o));
+      return {
+        walls: updateList(prev.walls),
+        doors: updateList(prev.doors),
+        windows: updateList(prev.windows),
+        rooms: updateList(prev.rooms),
+        custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
       };
     });
   };
@@ -484,6 +577,7 @@ const CadEditorPage = () => {
         windows: updateList(prev.windows),
         rooms: updateList(prev.rooms),
         custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
       };
     });
   };
@@ -498,6 +592,23 @@ const CadEditorPage = () => {
         windows: updateList(prev.windows),
         rooms: updateList(prev.rooms),
         custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
+      };
+    });
+  };
+
+  const applyBatchVisibility = (visibilityUpdates) => {
+    const visMap = new Map(visibilityUpdates.map((u) => [u.id, u.visible]));
+    setDynamicObjects((prev) => {
+      const updateList = (list) =>
+        list.map((o) => (visMap.has(o.id) ? { ...o, visible: visMap.get(o.id) } : o));
+      return {
+        walls: updateList(prev.walls),
+        doors: updateList(prev.doors),
+        windows: updateList(prev.windows),
+        rooms: updateList(prev.rooms),
+        custom: updateList(prev.custom),
+        deletedIds: prev.deletedIds || [],
       };
     });
   };
@@ -530,6 +641,13 @@ const CadEditorPage = () => {
       name: element.name,
       type: element.type,
     });
+    setSelectedObjects([
+      {
+        id: element.id,
+        name: element.name,
+        type: element.type,
+      },
+    ]);
   };
 
   const applyDeleteObject = (elementId) => {
@@ -548,6 +666,7 @@ const CadEditorPage = () => {
     if (selectedObject?.id === elementId) {
       setSelectedObject(null);
     }
+    setSelectedObjects((prev) => prev.filter((o) => o.id !== elementId));
   };
 
   // Synchronize discovered scene meshes from loaded GLB with project state (Req 1)
@@ -724,6 +843,79 @@ const CadEditorPage = () => {
     );
   };
 
+  const handleBatchUpdateColor = (objectIds, newColor) => {
+    if (!objectIds || objectIds.length === 0) return;
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const allMap = new Map(all.map((o) => [o.id, o]));
+    const objectChanges = objectIds.map((id) => ({
+      objectId: id,
+      prevColor: allMap.get(id)?.color || "#cccccc",
+      newColor,
+    }));
+
+    commandManager.execute(
+      new BatchColorChangeCommand({
+        objectChanges,
+        onApply: applyBatchColors,
+      })
+    );
+  };
+
+  const handleBatchUpdateProperty = (objectIds, property, newValue) => {
+    if (!objectIds || objectIds.length === 0) return;
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const allMap = new Map(all.map((o) => [o.id, o]));
+    const objectChanges = objectIds.map((id) => ({
+      objectId: id,
+      prevValue: allMap.get(id)?.[property] ?? 0.7,
+      newValue,
+    }));
+
+    commandManager.execute(
+      new BatchMaterialPropertyCommand({
+        property,
+        objectChanges,
+        onApply: applyBatchProperty,
+      })
+    );
+  };
+
+  const handleBatchToggleVisibility = (objectIds, newVisible) => {
+    if (!objectIds || objectIds.length === 0) return;
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const allMap = new Map(all.map((o) => [o.id, o]));
+    const objectChanges = objectIds.map((id) => ({
+      objectId: id,
+      prevVisible: allMap.get(id)?.visible !== false,
+      newVisible,
+    }));
+
+    commandManager.execute(
+      new BatchVisibilityChangeCommand({
+        objectChanges,
+        onApply: applyBatchVisibility,
+      })
+    );
+  };
+
   // Interactive Wall Creation (+ Wall placed directly on ground) (Req 2)
   const handleCreateWall = ({ startPoint, endPoint, length, height, thickness }) => {
     const id = `custom_wall_${Date.now()}`;
@@ -787,10 +979,40 @@ const CadEditorPage = () => {
       element.id.toLowerCase().includes("floor");
 
     if (isImportant) {
+      setElementsToDelete([]);
       setObjectToDelete(element);
       setShowDeleteElementModal(true);
     } else {
       executeDeleteElement(element);
+    }
+  };
+
+  const handleDeleteMultipleObjects = (elementIds) => {
+    if (!elementIds || elementIds.length === 0) return;
+    const all = [
+      ...dynamicObjects.walls,
+      ...dynamicObjects.doors,
+      ...dynamicObjects.windows,
+      ...dynamicObjects.rooms,
+      ...dynamicObjects.custom,
+    ];
+    const elements = all.filter((o) => elementIds.includes(o.id));
+    if (elements.length === 0) return;
+
+    const hasImportant = elements.some(
+      (e) =>
+        e.type === "floor" ||
+        e.type === "foundation" ||
+        e.id.toLowerCase().includes("slab") ||
+        e.id.toLowerCase().includes("floor")
+    );
+
+    if (hasImportant) {
+      setElementsToDelete(elements);
+      setObjectToDelete(elements[0]);
+      setShowDeleteElementModal(true);
+    } else {
+      executeBatchDeleteElements(elements);
     }
   };
 
@@ -804,8 +1026,61 @@ const CadEditorPage = () => {
     );
   };
 
+  const executeBatchDeleteElements = (elements) => {
+    commandManager.execute(
+      new BatchDeleteElementsCommand({
+        elements,
+        onBatchAdd: (addedElements) => {
+          setDynamicObjects((prev) => {
+            const nextWalls = [...prev.walls];
+            const nextDoors = [...prev.doors];
+            const nextWindows = [...prev.windows];
+            const nextRooms = [...prev.rooms];
+            const nextCustom = [...prev.custom];
+            const addedIds = new Set(addedElements.map((e) => e.id));
+
+            addedElements.forEach((el) => {
+              if (el.type === "wall") nextWalls.push(el);
+              else if (el.type === "floor" || el.type === "room") nextRooms.push(el);
+              else if (el.type === "door") nextDoors.push(el);
+              else if (el.type === "window") nextWindows.push(el);
+              else nextCustom.push(el);
+            });
+
+            return {
+              walls: nextWalls,
+              doors: nextDoors,
+              windows: nextWindows,
+              rooms: nextRooms,
+              custom: nextCustom,
+              deletedIds: (prev.deletedIds || []).filter((id) => !addedIds.has(id)),
+            };
+          });
+        },
+        onBatchRemove: (removedIds) => {
+          const idSet = new Set(removedIds);
+          setDynamicObjects((prev) => ({
+            walls: prev.walls.filter((o) => !idSet.has(o.id)),
+            doors: prev.doors.filter((o) => !idSet.has(o.id)),
+            windows: prev.windows.filter((o) => !idSet.has(o.id)),
+            rooms: prev.rooms.filter((o) => !idSet.has(o.id)),
+            custom: prev.custom.filter((o) => !idSet.has(o.id)),
+            deletedIds: Array.from(new Set([...(prev.deletedIds || []), ...removedIds])),
+          }));
+          setSelectedObjects((prev) => prev.filter((o) => !idSet.has(o.id)));
+          setSelectedObject((prev) => (prev && idSet.has(prev.id) ? null : prev));
+        },
+      })
+    );
+  };
+
   const handleConfirmDeleteObject = () => {
-    if (objectToDelete) {
+    if (elementsToDelete && elementsToDelete.length > 0) {
+      executeBatchDeleteElements(elementsToDelete);
+      setElementsToDelete([]);
+      setObjectToDelete(null);
+      setShowDeleteElementModal(false);
+    } else if (objectToDelete) {
       executeDeleteElement(objectToDelete);
       setObjectToDelete(null);
       setShowDeleteElementModal(false);
@@ -902,14 +1177,19 @@ const CadEditorPage = () => {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         commandManager.redo();
-      } else if ((e.key === "Delete" || e.key === "Backspace") && !isInput && selectedObject) {
-        e.preventDefault();
-        handleDeleteObject(selectedObject.id);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && !isInput) {
+        if (selectedObjects.length > 1) {
+          e.preventDefault();
+          handleDeleteMultipleObjects(selectedObjects.map((o) => o.id));
+        } else if (selectedObject) {
+          e.preventDefault();
+          handleDeleteObject(selectedObject.id);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [commandManager, selectedObject, dynamicObjects]);
+  }, [commandManager, selectedObject, selectedObjects, dynamicObjects]);
 
   const selectedData = getSelectedObjectData();
 
@@ -955,6 +1235,10 @@ const CadEditorPage = () => {
         onSaveProject={handleSaveProject}
         onExportGlb={handleExportGlb}
         onDeleteProject={() => setShowDeleteModal(true)}
+        isLeftPanelOpen={isLeftPanelOpen}
+        onToggleLeftPanel={() => setIsLeftPanelOpen((prev) => !prev)}
+        isRightPanelOpen={isRightPanelOpen}
+        onToggleRightPanel={() => setIsRightPanelOpen((prev) => !prev)}
       />
 
       {/* Save Toast Notification */}
@@ -975,54 +1259,63 @@ const CadEditorPage = () => {
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Mobile Viewport Guard: 3D CAD Editing Unavailable on Mobile */}
-        <div className="sm:hidden absolute inset-0 z-50 bg-[#fdfbf7]/98 dark:bg-[#141311]/98 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/15 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mb-4 border border-orange-200 dark:border-[#ff7417]/30">
-            <Layers className="w-7 h-7" />
-          </div>
-          <h3 className="font-serif text-lg font-bold text-zinc-900 dark:text-[#f5f0e8] mb-2">
-            3D CAD Editor Requires Desktop or Tablet
-          </h3>
-          <p className="text-xs text-zinc-600 dark:text-[#b4ada3] max-w-xs leading-relaxed mb-6">
-            Precision 3D modeling, coordinate manipulation, and CAD scene outliner tools require a viewport width of 640px or higher. Please use a tablet or desktop browser to edit this model.
-          </p>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/projects")}
-              className="text-xs"
-            >
-              Back to Projects
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="text-xs"
-            >
-              Overview
-            </Button>
-          </div>
-        </div>
-
-        {/* Left: Scene Hierarchy Tree Panel */}
+        {/* Left: Scene Hierarchy Tree Panel (Responsive slide-over on small screens, static column on md+) */}
         {isLeftPanelOpen && (
-          <div className="w-64 border-r border-[#eae4dc] dark:border-[#39342f] h-full hidden md:block shrink-0 dark:bg-[#1d1b19]">
-            <SceneHierarchyPanel
-              dynamicObjects={dynamicObjects}
-              selectedObjectId={selectedObject?.id}
-              onSelectObject={setSelectedObject}
-              onToggleVisibility={handleToggleVisibility}
-              onToggleCategoryVisibility={handleToggleCategoryVisibility}
-              categoryVisibility={editorState}
-              onCollapse={() => setIsLeftPanelOpen(false)}
+          <>
+            <div
+              className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
+              onClick={() => setIsLeftPanelOpen(false)}
             />
-          </div>
+            <div className="fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl md:static md:w-64 md:shadow-none md:z-auto border-r border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform">
+              <SceneHierarchyPanel
+                dynamicObjects={dynamicObjects}
+                selectedObjectId={selectedObject?.id}
+                selectedObjectIds={selectedObjectIds}
+                onSelectObject={handleObjectSelect}
+                onClearSelection={handleClearSelection}
+                onToggleVisibility={handleToggleVisibility}
+                onToggleCategoryVisibility={handleToggleCategoryVisibility}
+                categoryVisibility={editorState}
+                onCollapse={() => setIsLeftPanelOpen(false)}
+              />
+            </div>
+          </>
         )}
 
         {/* Center: 3D Viewport */}
-        <div className="flex-1 h-full relative">
+        <div className="flex-1 min-w-0 h-full relative">
+          {/* Persistent Expand Left Panel Button (when collapsed) */}
+          {!isLeftPanelOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLeftPanelOpen(true);
+              }}
+              title="Expand Scene Hierarchy (Left Panel)"
+              aria-label="Expand Scene Hierarchy"
+              className="absolute top-4 left-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center pointer-events-auto"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Persistent Expand Right Panel Button (when collapsed) */}
+          {!isRightPanelOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsRightPanelOpen(true);
+              }}
+              title="Expand Property Inspector (Right Panel)"
+              aria-label="Expand Property Inspector"
+              className="absolute top-4 right-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center pointer-events-auto"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+
           {loading ? (
             <div className="w-full h-full flex items-center justify-center bg-[#f4eee6] dark:bg-[#141311]">
               <LoadingSpinner
@@ -1050,31 +1343,6 @@ const CadEditorPage = () => {
             </div>
           ) : (
             <>
-              {/* Expand Left Panel Button (when collapsed) */}
-              {!isLeftPanelOpen && (
-                <button
-                  type="button"
-                  onClick={() => setIsLeftPanelOpen(true)}
-                  title="Expand Scene Outliner (Left Panel)"
-                  aria-label="Expand Scene Outliner"
-                  className="absolute top-4 left-4 z-20 p-2 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Expand Right Panel Button (when collapsed) */}
-              {!isRightPanelOpen && (
-                <button
-                  type="button"
-                  onClick={() => setIsRightPanelOpen(true)}
-                  title="Expand Property Inspector (Right Panel)"
-                  aria-label="Expand Property Inspector"
-                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-white/90 dark:bg-[#1d1b19]/90 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              )}
 
               {/* Floating Source Blueprint Button for rapid inspection */}
               <button
@@ -1100,7 +1368,8 @@ const CadEditorPage = () => {
                 editorState={editorState}
                 dynamicObjects={dynamicObjects}
                 selectedObject={selectedObject}
-                onObjectSelect={setSelectedObject}
+                selectedObjectIds={selectedObjectIds}
+                onObjectSelect={handleObjectSelect}
                 onModelLoaded={handleModelLoaded}
                 onTransformChange={handleUpdateTransform}
                 transformMode={transformMode}
@@ -1160,45 +1429,65 @@ const CadEditorPage = () => {
           )}
         </div>
 
-        {/* Right: Property Inspector Panel */}
+        {/* Right: Property Inspector Panel (Responsive slide-over on small screens, static column on lg+) */}
         {isRightPanelOpen && (
-          <div className="w-80 border-l border-[#eae4dc] dark:border-[#39342f] h-full hidden sm:block shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19]">
-            <CadPropertiesPanel
-              selectedObject={selectedObject}
-              objectData={selectedData}
-              onUpdateColor={handleUpdateColor}
-              onUpdateProperty={handleUpdateProperty}
-              onUpdateTransform={handleUpdateTransform}
-              onToggleVisibility={handleToggleVisibility}
-              onDeleteObject={handleDeleteObject}
-              project={modelProject}
-              taskId={activeTaskId}
-              onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
-              isComparing={showCompareOverlay}
-              onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
-              showBlueprint={editorState.showBlueprintOverlay !== false}
-              onToggleBlueprint={() =>
-                setEditorState((prev) => ({
-                  ...prev,
-                  showBlueprintOverlay: prev.showBlueprintOverlay === false,
-                }))
-              }
-              blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
-              onChangeBlueprintOpacity={(opacity) =>
-                setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
-              }
-              onCollapse={() => setIsRightPanelOpen(false)}
+          <>
+            <div
+              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsRightPanelOpen(false);
+              }}
             />
-          </div>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="fixed inset-y-0 right-0 z-40 w-80 max-w-[85vw] shadow-2xl lg:static lg:w-80 lg:shadow-none lg:z-auto border-l border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform"
+            >
+              <CadPropertiesPanel
+                selectedObject={selectedObject}
+                selectedObjects={selectedObjects}
+                objectData={selectedData}
+                allSelectedData={allSelectedData}
+                onUpdateColor={handleUpdateColor}
+                onBatchUpdateColor={handleBatchUpdateColor}
+                onUpdateProperty={handleUpdateProperty}
+                onBatchUpdateProperty={handleBatchUpdateProperty}
+                onUpdateTransform={handleUpdateTransform}
+                onToggleVisibility={handleToggleVisibility}
+                onBatchToggleVisibility={handleBatchToggleVisibility}
+                onDeleteObject={handleDeleteObject}
+                onDeleteObjects={handleDeleteMultipleObjects}
+                onClearSelection={handleClearSelection}
+                project={modelProject}
+                taskId={activeTaskId}
+                onToggleCompare={() => setShowCompareOverlay((prev) => !prev)}
+                isComparing={showCompareOverlay}
+                onSwitchTo2DPlan={() => handleSetCameraPreset(CAMERA_PRESETS.TOP)}
+                showBlueprint={editorState.showBlueprintOverlay !== false}
+                onToggleBlueprint={() =>
+                  setEditorState((prev) => ({
+                    ...prev,
+                    showBlueprintOverlay: prev.showBlueprintOverlay === false,
+                  }))
+                }
+                blueprintOpacity={editorState.blueprintOpacity ?? 0.65}
+                onChangeBlueprintOpacity={(opacity) =>
+                  setEditorState((prev) => ({ ...prev, blueprintOpacity: opacity }))
+                }
+                onCollapse={() => setIsRightPanelOpen(false)}
+              />
+            </div>
+          </>
         )}
       </div>
 
-      {/* Delete Architectural Element Confirmation Modal (e.g. FloorSlab) */}
+      {/* Delete Architectural Element Confirmation Modal (e.g. FloorSlab or Batch) */}
       <Modal
         isOpen={showDeleteElementModal}
         onClose={() => {
           setShowDeleteElementModal(false);
           setObjectToDelete(null);
+          setElementsToDelete([]);
         }}
         title="Delete Architectural Element"
       >
@@ -1209,12 +1498,14 @@ const CadEditorPage = () => {
             </div>
             <div>
               <p className="text-sm font-semibold text-zinc-900 dark:text-[#f5f0e8]">
-                Delete {objectToDelete?.name || "Foundation Slab"}?
+                {elementsToDelete && elementsToDelete.length > 1
+                  ? `Delete ${elementsToDelete.length} elements?`
+                  : `Delete ${objectToDelete?.name || "Foundation Slab"}?`}
               </p>
               <p className="text-xs text-zinc-600 dark:text-[#b4ada3] mt-1 leading-relaxed">
-                Are you sure you want to delete this {objectToDelete?.type || "element"}?
-                This will remove it from your project's editable scene and reveal underlying layers.
-                The original 3D model asset in storage and the source blueprint will not be modified, and you can undo this action at any time.
+                {elementsToDelete && elementsToDelete.length > 1
+                  ? `Are you sure you want to delete these ${elementsToDelete.length} selected elements? This will remove them from your project's editable scene. The original 3D asset in storage will remain unchanged, and you can undo this action at any time.`
+                  : `Are you sure you want to delete this ${objectToDelete?.type || "element"}? This will remove it from your project's editable scene and reveal underlying layers. The original 3D model asset in storage will not be modified, and you can undo this action at any time.`}
               </p>
             </div>
           </div>
@@ -1226,6 +1517,7 @@ const CadEditorPage = () => {
               onClick={() => {
                 setShowDeleteElementModal(false);
                 setObjectToDelete(null);
+                setElementsToDelete([]);
               }}
             >
               Cancel
@@ -1237,7 +1529,11 @@ const CadEditorPage = () => {
               className="bg-red-600 hover:bg-red-700 text-white border-transparent"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-              <span>Delete {objectToDelete?.type === "floor" ? "Floor Slab" : "Element"}</span>
+              <span>
+                {elementsToDelete && elementsToDelete.length > 1
+                  ? `Delete ${elementsToDelete.length} Elements`
+                  : `Delete ${objectToDelete?.type === "floor" ? "Floor Slab" : "Element"}`}
+              </span>
             </Button>
           </div>
         </div>

@@ -118,6 +118,78 @@ export class DeleteElementCommand extends Command {
   }
 }
 
+export class BatchColorChangeCommand extends Command {
+  constructor({ objectChanges, onApply }) {
+    super(`Change Color of ${objectChanges.length} elements`);
+    this.objectChanges = objectChanges; // [{ objectId, prevColor, newColor }]
+    this.onApply = onApply;
+  }
+
+  execute() {
+    this.onApply(this.objectChanges.map((c) => ({ id: c.objectId, color: c.newColor })));
+  }
+
+  undo() {
+    this.onApply(this.objectChanges.map((c) => ({ id: c.objectId, color: c.prevColor })));
+  }
+}
+
+export class BatchMaterialPropertyCommand extends Command {
+  constructor({ property, objectChanges, onApply }) {
+    super(`Update ${property} on ${objectChanges.length} elements`);
+    this.property = property;
+    this.objectChanges = objectChanges; // [{ objectId, prevValue, newValue }]
+    this.onApply = onApply;
+  }
+
+  execute() {
+    this.onApply(
+      this.property,
+      this.objectChanges.map((c) => ({ id: c.objectId, value: c.newValue }))
+    );
+  }
+
+  undo() {
+    this.onApply(
+      this.property,
+      this.objectChanges.map((c) => ({ id: c.objectId, value: c.prevValue }))
+    );
+  }
+}
+
+export class BatchVisibilityChangeCommand extends Command {
+  constructor({ objectChanges, onApply }) {
+    super(`Toggle Visibility of ${objectChanges.length} elements`);
+    this.objectChanges = objectChanges; // [{ objectId, prevVisible, newVisible }]
+    this.onApply = onApply;
+  }
+
+  execute() {
+    this.onApply(this.objectChanges.map((c) => ({ id: c.objectId, visible: c.newVisible })));
+  }
+
+  undo() {
+    this.onApply(this.objectChanges.map((c) => ({ id: c.objectId, visible: c.prevVisible })));
+  }
+}
+
+export class BatchDeleteElementsCommand extends Command {
+  constructor({ elements, onBatchAdd, onBatchRemove }) {
+    super(`Delete ${elements.length} elements`);
+    this.elements = JSON.parse(JSON.stringify(elements));
+    this.onBatchAdd = onBatchAdd;
+    this.onBatchRemove = onBatchRemove;
+  }
+
+  execute() {
+    this.onBatchRemove(this.elements.map((e) => e.id));
+  }
+
+  undo() {
+    this.onBatchAdd(this.elements);
+  }
+}
+
 export class CommandManager {
   constructor(maxHistory = 50) {
     this.undoStack = [];
