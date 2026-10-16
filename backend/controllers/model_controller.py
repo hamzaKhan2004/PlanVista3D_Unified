@@ -238,6 +238,10 @@ class ModelController:
         Preprocesses raster floor plan, cleans noise, deduplicates walls, and returns 2D vectors & SVG.
         """
         print("[VECTOR_EXTRACT] Received vector extraction request")
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({"error": "Unauthorized", "message": "Valid authentication token required or invalid token provided"}), 401
+
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded for vector extraction"}), 400
 

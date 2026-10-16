@@ -8,6 +8,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from unittest.mock import patch
 from backend.app import app
 from backend.services.vector_service import (
     extract_vector_walls,
@@ -22,6 +23,86 @@ SAMPLE_DIR = os.path.abspath(os.path.join(PROJECT_ROOT, "samples", "blueprints")
 class VectorAssistedPipelineTests(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
+
+    def test_options_preflight_on_vector_extract(self):
+        """Test OPTIONS CORS preflight on /api/vector-extract from production origin."""
+        res = self.client.options(
+            "/api/vector-extract",
+            headers={
+                "Origin": "https://planvista3d.onrender.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type",
+            },
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(
+            res.headers.get("Access-Control-Allow-Origin"),
+            "https://planvista3d.onrender.com",
+        )
+        allow_headers = res.headers.get("Access-Control-Allow-Headers", "").lower()
+        self.assertIn("authorization", allow_headers)
+        self.assertIn("content-type", allow_headers)
+        allow_methods = res.headers.get("Access-Control-Allow-Methods", "")
+        self.assertIn("POST", allow_methods)
+        print("[PASS] OPTIONS preflight on /api/vector-extract: 200 with CORS headers")
+
+    @patch("backend.middleware.auth.PUTER_AUTH_REQUIRED", True)
+    @patch("backend.middleware.auth.verify_puter_token")
+    def test_unauthenticated_vector_extract_rejected_when_auth_required(self, mock_verify):
+        """Unauthenticated /api/vector-extract request must return 401 when auth is required."""
+        mock_verify.return_value = None
+        f1_path = os.path.join(SAMPLE_DIR, "f1.png")
+        if not os.path.exists(f1_path):
+            self.skipTest(f"Sample not found: {f1_path}")
+
+        with open(f1_path, "rb") as f:
+            res = self.client.post(
+                "/api/vector-extract",
+                data={"file": (f, "f1.png")},
+                headers={"Origin": "https://planvista3d.onrender.com"},
+            )
+        self.assertEqual(res.status_code, 401)
+        data = json.loads(res.data)
+        self.assertIn("Unauthorized", data.get("error", ""))
+        print("[PASS] Unauthenticated /api/vector-extract rejected (401)")
+
+    @patch("backend.middleware.auth.PUTER_AUTH_REQUIRED", True)
+    @patch("backend.middleware.auth.verify_puter_token")
+    def test_authenticated_vector_extract_with_bearer_token(self, mock_verify):
+        """Authenticated /api/vector-extract request with valid Bearer token returns 200."""
+        mock_verify.return_value = {
+            "user_id": "test_render_user",
+            "username": "render_tester",
+            "authenticated": True,
+        }
+        f1_path = os.path.join(SAMPLE_DIR, "f1.png")
+        if not os.path.exists(f1_path):
+            self.skipTest(f"Sample not found: {f1_path}")
+
+        with open(f1_path, "rb") as f:
+            res = self.client.post(
+                "/api/vector-extract",
+                data={
+                    "file": (f, "f1.png"),
+                    "wall_height": "3.0",
+                    "wall_thickness": "0.25",
+                    "target_size": "28.0",
+                },
+                headers={
+                    "Origin": "https://planvista3d.onrender.com",
+                    "Authorization": "Bearer valid_puter_token_xyz",
+                },
+            )
+        self.assertEqual(res.status_code, 200)
+        data = json.loads(res.data)
+        self.assertTrue(data.get("success"))
+        self.assertIn("line_segments", data)
+        self.assertIn("svg_preview", data)
+        self.assertEqual(
+            res.headers.get("Access-Control-Allow-Origin"),
+            "https://planvista3d.onrender.com",
+        )
+        print("[PASS] Authenticated /api/vector-extract: 200 with vectors & CORS headers")
 
     def test_clean_plan_extraction(self):
         """Test clean raster plan (f1.png) vector extraction and metrics."""
