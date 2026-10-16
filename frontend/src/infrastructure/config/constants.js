@@ -21,10 +21,18 @@ export const POLL_INTERVAL_MS = 1500;
 export const MAX_POLL_ATTEMPTS = 120; // 3 minutes timeout
 
 // API Base URL (configurable via VITE_API_BASE_URL for decoupled production deployment)
-export const API_BASE_URL =
+const rawApiBase = (
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  "/api";
+  "/api"
+).trim().replace(/\/+$/, "");
+
+// Normalize API base URL: ensure it routes to '/api' matching the backend blueprint route prefix
+export const API_BASE_URL = !rawApiBase || rawApiBase === "/api"
+  ? "/api"
+  : rawApiBase.endsWith("/api")
+  ? rawApiBase
+  : `${rawApiBase}/api`;
 
 // Supported file extensions
 export const SUPPORTED_MODEL_FORMATS = [".dxf", ".png", ".jpg", ".jpeg"];

@@ -170,6 +170,9 @@ class TestImageKitApiEndpoints(unittest.TestCase):
 
     def setUp(self):
         self.client = app.test_client()
+        self.mongo_patcher = patch("backend.db.mongo.mongo_manager.is_configured", return_value=True)
+        self.mongo_patcher.start()
+        self.addCleanup(self.mongo_patcher.stop)
 
     @patch("backend.controllers.model_controller.imagekit_service")
     @patch("backend.controllers.model_controller.project_repository")

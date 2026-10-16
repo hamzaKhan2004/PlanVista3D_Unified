@@ -38,7 +38,12 @@ processing_status = task_repository.raw_dict
 def create_app():
     validate_production_config()
     application = Flask(__name__)
-    CORS(application, origins=ALLOWED_ORIGINS)
+    CORS(
+        application,
+        origins=ALLOWED_ORIGINS,
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    )
     application.register_blueprint(api_bp)
     return application
 

@@ -169,6 +169,9 @@ class TestS3ApiEndpoints(unittest.TestCase):
 
     def setUp(self):
         self.client = app.test_client()
+        self.mongo_patcher = patch("backend.db.mongo.mongo_manager.is_configured", return_value=True)
+        self.mongo_patcher.start()
+        self.addCleanup(self.mongo_patcher.stop)
 
     def test_get_model_url_unauthorized_when_auth_required(self):
         with patch("backend.middleware.auth.PUTER_AUTH_REQUIRED", True):

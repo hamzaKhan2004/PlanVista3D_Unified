@@ -33,19 +33,25 @@ PORT = int(os.environ.get("PORT", 5000))
 
 # CORS origins
 cors_origins_env = os.environ.get("CORS_ORIGIN")
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "https://planvista3d.onrender.com",
+]
+
 if cors_origins_env:
     if cors_origins_env.strip() == "*":
         ALLOWED_ORIGINS = "*"
     else:
-        ALLOWED_ORIGINS = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+        origins = [o.strip() for o in cors_origins_env.split(",") if o.strip()]
+        if "https://planvista3d.onrender.com" not in origins:
+            origins.append("https://planvista3d.onrender.com")
+        ALLOWED_ORIGINS = origins
 else:
-    ALLOWED_ORIGINS = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-    ]
+    ALLOWED_ORIGINS = list(DEFAULT_ALLOWED_ORIGINS)
 
 # MongoDB Atlas Database Configuration
 MONGODB_URI = os.environ.get("MONGODB_URI", "").strip()

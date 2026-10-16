@@ -30,6 +30,9 @@ class TestStage6SecurityAndIntegrityAudit(unittest.TestCase):
 
     def setUp(self):
         self.client = app.test_client()
+        self.mongo_patcher = patch("backend.db.mongo.mongo_manager.is_configured", return_value=True)
+        self.mongo_patcher.start()
+        self.addCleanup(self.mongo_patcher.stop)
 
     @patch("backend.middleware.auth.verify_puter_token")
     def test_unauthenticated_request_rejected_when_auth_required(self, mock_verify):
