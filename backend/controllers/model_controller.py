@@ -106,7 +106,10 @@ class ModelController:
                         os.remove(input_path)
                     except Exception:
                         pass
-                return jsonify({"error": f"ImageKit blueprint upload failed: {str(ik_err)}"}), 502
+                err_text = str(ik_err)
+                if not err_text.lower().startswith("imagekit"):
+                    err_text = f"ImageKit blueprint upload failed: {err_text}"
+                return jsonify({"error": err_text}), 502
             except Exception as e:
                 if os.path.exists(input_path):
                     try:
@@ -128,21 +131,23 @@ class ModelController:
             source_info["imagekit_url"] = imagekit_ref["url"]
             source_info["imagekit_file_id"] = imagekit_ref["file_id"]
 
+        if mongo_manager.is_configured():
             asset_record = None
             try:
-                asset_record = project_repository.record_asset(
-                    {
-                        "asset_id": imagekit_ref["file_id"],
-                        "project_id": task_id,
-                        "asset_type": "blueprint",
-                        "storage_provider": "imagekit",
-                        "storage_key": imagekit_ref["file_id"],
-                        "url": imagekit_ref["url"],
-                        "filename": filename,
-                        "file_size": imagekit_ref.get("size", 0),
-                    },
-                    owner_id=owner_id,
-                )
+                if imagekit_ref:
+                    asset_record = project_repository.record_asset(
+                        {
+                            "asset_id": imagekit_ref["file_id"],
+                            "project_id": task_id,
+                            "asset_type": "blueprint",
+                            "storage_provider": "imagekit",
+                            "storage_key": imagekit_ref["file_id"],
+                            "url": imagekit_ref["url"],
+                            "filename": filename,
+                            "file_size": imagekit_ref.get("size", 0),
+                        },
+                        owner_id=owner_id,
+                    )
                 project_repository.create_project(
                     {
                         "project_id": task_id,
