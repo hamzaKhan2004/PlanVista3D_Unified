@@ -528,6 +528,80 @@ class TestImageKitApiEndpoints(unittest.TestCase):
                 # Valid auth is accepted (returns 400 for bad image bytes, but not 401)
                 self.assertNotEqual(resp.status_code, 401)
 
+    # --- Verification Tests: Upload endpoint validation, auth, dependency failures ---
+
+    def test_upload_missing_file_returns_400(self):
+        """Missing file payload returns 400 Bad Request."""
+        resp = self.client.post("/api/upload", data={}, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("no file uploaded", resp.get_json()["error"].lower())
+
+    def test_upload_unsupported_extension_returns_400(self):
+        """Unsupported file extension returns 400 Bad Request."""
+        data = {
+            "file": (io.BytesIO(b"malicious content"), "executable.exe"),
+        }
+        resp = self.client.post("/api/upload", data=data, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("invalid file format", resp.get_json()["error"].lower())
+
+    def test_upload_file_exceeds_size_limit_returns_400(self):
+        """Files exceeding 25MB are rejected with 400 Bad Request."""
+        with patch("os.path.getsize", return_value=26 * 1024 * 1024):
+            data = {
+                "file": (io.BytesIO(b"content"), "blueprint.png"),
+            }
+            resp = self.client.post("/api/upload", data=data, content_type="multipart/form-data")
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("exceeds 25mb", resp.get_json()["error"].lower())
+
+    @patch("backend.controllers.model_controller.get_authenticated_user", return_value=None)
+    def test_upload_unauthorized_user_returns_401(self, mock_auth):
+        """Unauthenticated or invalid token requests return 401 Unauthorized."""
+        data = {
+            "file": (io.BytesIO(b"\x89PNG\r\n\x1a\nfake"), "blueprint.png"),
+        }
+        resp = self.client.post("/api/upload", data=data, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 401)
+        self.assertIn("unauthorized", resp.get_json()["error"].lower())
+
+    @patch("backend.controllers.model_controller.imagekit_service")
+    @patch("backend.controllers.model_controller.dispatch_generation_task")
+    def test_upload_imagekit_dependency_failure_returns_502(self, mock_dispatch, mock_ik):
+        """When ImageKit is configured but fails during upload, endpoint returns sanitized 502."""
+        mock_ik.is_configured.return_value = True
+        mock_ik.upload_blueprint_image.side_effect = ImageKitServiceError("ImageKit upload failed: PermissionDeniedError")
+
+        data = {
+            "file": (io.BytesIO(b"\x89PNG\r\n\x1a\nfake"), "blueprint.png"),
+        }
+        resp = self.client.post("/api/upload", data=data, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 502)
+        err = resp.get_json()["error"]
+        self.assertIn("ImageKit", err)
+        self.assertIn("PermissionDeniedError", err)
+
+    @patch("backend.controllers.model_controller.imagekit_service")
+    @patch("backend.controllers.model_controller.mongo_manager")
+    @patch("backend.controllers.model_controller.project_repository")
+    @patch("backend.controllers.model_controller.dispatch_generation_task")
+    def test_upload_mongo_project_created_even_without_imagekit(self, mock_dispatch, mock_repo, mock_mongo, mock_ik):
+        """When ImageKit is unconfigured, MongoDB project is still recorded with blueprint_ref=None."""
+        mock_ik.is_configured.return_value = False
+        mock_mongo.is_configured.return_value = True
+
+        data = {
+            "file": (io.BytesIO(b"\x89PNG\r\n\x1a\nfake"), "blueprint.png"),
+        }
+        resp = self.client.post("/api/upload", data=data, content_type="multipart/form-data")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("task_id", resp.get_json())
+        mock_repo.create_project.assert_called_once()
+        created_project = mock_repo.create_project.call_args[0][0]
+        self.assertIsNone(created_project["blueprint_ref"])
+        self.assertEqual(created_project["status"], "queued")
+        mock_repo.create_generation_job.assert_called_once()
+
 
 class TestProductionAuthConfig(unittest.TestCase):
     """Tests enforcement of PUTER_AUTH_REQUIRED in production environments (Fix 3)."""
@@ -556,6 +630,42 @@ class TestProductionAuthConfig(unittest.TestCase):
         with patch.dict(os.environ, env_clean, clear=True):
             # Should not raise in local dev
             validate_production_config(auth_required=False)
+
+
+class TestImageKitConfiguration(unittest.TestCase):
+    """Tests for ImageKit configuration validation and placeholder detection."""
+
+    def test_is_configured_rejects_template_placeholders(self):
+        """Verifies that .env.example placeholder strings are rejected as unconfigured."""
+        service = ImageKitService(
+            private_key="private_your_private_key_here",
+            public_key="public_your_public_key_here",
+            url_endpoint="https://ik.imagekit.io/your_imagekit_id",
+        )
+        self.assertFalse(service.is_configured())
+
+        service2 = ImageKitService(
+            private_key="<your_private_key>",
+            public_key="public_test",
+            url_endpoint="https://ik.imagekit.io/valid_endpoint",
+        )
+        self.assertFalse(service2.is_configured())
+
+        service3 = ImageKitService(
+            private_key="private_valid_key_12345",
+            public_key="public_valid_key_12345",
+            url_endpoint="https://ik.imagekit.io/valid_endpoint/",
+        )
+        self.assertTrue(service3.is_configured())
+
+    def test_is_configured_rejects_missing_library(self):
+        """When imagekitio is not installed, is_configured() must return False."""
+        service = ImageKitService(
+            private_key="private_valid_key",
+            url_endpoint="https://ik.imagekit.io/endpoint",
+        )
+        with patch.dict("sys.modules", {"imagekitio": None}):
+            self.assertFalse(service.is_configured())
 
 
 if __name__ == "__main__":

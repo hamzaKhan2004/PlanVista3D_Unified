@@ -57,8 +57,36 @@ class ImageKitService:
         return self._url_endpoint if self._url_endpoint is not None else IMAGEKIT_URL
 
     def is_configured(self) -> bool:
-        """Returns True if ImageKit credentials are non-empty."""
-        return bool(self.private_key and self.url_endpoint)
+        """
+        Returns True if ImageKit credentials are non-empty, non-placeholder,
+        and the official imagekitio client library is importable.
+        """
+        if not self.private_key or not self.url_endpoint:
+            return False
+
+        pk = str(self.private_key).strip().lower()
+        url = str(self.url_endpoint).strip().lower()
+
+        # Reject common template placeholders from .env.example
+        placeholders = [
+            "your_private_key",
+            "your_imagekit_id",
+            "your_public_key",
+            "your_key",
+            "example",
+            "placeholder",
+        ]
+        if any(p in pk for p in placeholders) or any(p in url for p in placeholders):
+            return False
+        if pk.startswith("<") or url.startswith("<"):
+            return False
+
+        try:
+            import imagekitio  # noqa: F401
+        except ImportError:
+            return False
+
+        return True
 
     def _get_client(self):
         """Lazily initializes the ImageKit client singleton."""
