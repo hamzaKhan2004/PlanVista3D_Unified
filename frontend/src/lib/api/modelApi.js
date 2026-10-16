@@ -234,3 +234,31 @@ export const deleteLocalModelProject = async (taskId) => {
     throw error;
   }
 };
+
+/**
+ * Persists project customization settings and/or edited 3D model geometry to backend storage.
+ * Enforces Puter authentication headers.
+ */
+export const saveProjectCustomization = async (taskId, customization, file = null) => {
+  try {
+    let response;
+    if (file) {
+      const formData = new FormData();
+      formData.append("customization", typeof customization === "string" ? customization : JSON.stringify(customization));
+      formData.append("file", file);
+      response = await axios.put(`${API_BASE_URL}/project/${taskId}`, formData, {
+        headers: getAuthHeaders(),
+      });
+    } else {
+      response = await axios.put(
+        `${API_BASE_URL}/project/${taskId}`,
+        { customization },
+        { headers: getAuthHeaders({ "Content-Type": "application/json" }) }
+      );
+    }
+    return response.data;
+  } catch (error) {
+    console.error("Failed to save project customization to backend:", error);
+    throw error;
+  }
+};

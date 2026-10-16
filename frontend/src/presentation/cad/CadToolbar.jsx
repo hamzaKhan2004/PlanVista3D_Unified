@@ -18,6 +18,8 @@ import {
   Sparkles,
   Trash2,
   Image as ImageIcon,
+  Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 import Button from "../ui/Button";
 import { CAMERA_PRESETS, TRANSFORM_MODES } from "../../domain/cad/cadTypes";
@@ -46,11 +48,30 @@ const CadToolbar = ({
   onExportGlb,
   onDeleteProject,
   isSaving = false,
+  isLeftPanelOpen = true,
+  onToggleLeftPanel,
+  isRightPanelOpen = true,
+  onToggleRightPanel,
 }) => {
   return (
-    <div className="bg-[#fdfbf7] dark:bg-[#1d1b19] border-b border-[#eae4dc] dark:border-[#39342f] px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+    <div className="bg-[#fdfbf7] dark:bg-[#1d1b19] border-b border-[#eae4dc] dark:border-[#39342f] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3 shadow-xs overflow-x-auto overflow-y-hidden scrollbar-none">
       {/* Left: Transformation Modes & Wall Placement */}
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center space-x-1 shrink-0">
+        {onToggleLeftPanel && (
+          <button
+            type="button"
+            onClick={onToggleLeftPanel}
+            title={isLeftPanelOpen ? "Hide Scene Hierarchy" : "Show Scene Hierarchy"}
+            className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer mr-1 ${
+              isLeftPanelOpen
+                ? "bg-orange-100/80 dark:bg-[#ff7417]/20 text-orange-700 dark:text-[#ff7417]"
+                : "text-zinc-600 dark:text-[#b4ada3] hover:bg-zinc-100 dark:hover:bg-[#2b2a27]"
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span className="hidden xl:inline">Hierarchy</span>
+          </button>
+        )}
         <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 dark:text-[#a88b7d] mr-1.5 hidden sm:inline">
           Tools
         </span>
@@ -255,6 +276,21 @@ const CadToolbar = ({
         >
           <Camera className="w-4 h-4" />
         </button>
+        {onToggleRightPanel && (
+          <button
+            type="button"
+            onClick={onToggleRightPanel}
+            title={isRightPanelOpen ? "Hide Properties Panel" : "Show Properties Panel"}
+            className={`p-2 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
+              isRightPanelOpen
+                ? "bg-orange-100/80 dark:bg-[#ff7417]/20 text-orange-700 dark:text-[#ff7417]"
+                : "text-zinc-600 dark:text-[#b4ada3] hover:bg-zinc-100 dark:hover:bg-[#2b2a27]"
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            <span className="hidden xl:inline">Properties</span>
+          </button>
+        )}
 
         <div className="h-5 w-px bg-zinc-200 dark:bg-[#39342f] mx-1" />
 
