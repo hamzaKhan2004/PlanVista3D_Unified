@@ -195,7 +195,7 @@ const CadToolbar = ({
           onClick={onToggleGrid}
           title="Toggle Grid"
           className={`p-1.5 rounded-lg text-xs transition-colors ${
-            showGrid ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+            showGrid ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <GridIcon className="w-4 h-4" />
@@ -204,7 +204,7 @@ const CadToolbar = ({
           onClick={onToggleWireframe}
           title="Toggle Wireframe Mode"
           className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-            showWireframe ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+            showWireframe ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <Box className="w-4 h-4" />
@@ -216,7 +216,7 @@ const CadToolbar = ({
           className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
             showBlueprint
               ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15 font-semibold"
-              : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+              : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5" />
@@ -225,7 +225,7 @@ const CadToolbar = ({
 
         {showBlueprint && onChangeBlueprintOpacity && (
           <div className="hidden xl:flex items-center gap-1.5 pl-1">
-            <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+            <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">
               {Math.round(blueprintOpacity * 100)}%
             </span>
             <input

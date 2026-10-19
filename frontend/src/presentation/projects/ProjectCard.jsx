@@ -37,7 +37,7 @@ const ProjectCard = ({ project, onDelete }) => {
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-zinc-400 dark:text-[#746e65]">
+          <div className="w-full h-full flex items-center justify-center text-zinc-400 dark:text-[#b4ada3]">
             <Box className="w-12 h-12 stroke-[1.5]" />
           </div>
         )}
@@ -45,13 +45,12 @@ const ProjectCard = ({ project, onDelete }) => {
         {/* Badge */}
         <div className="absolute top-3 left-3">
           <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md shadow-xs ${
-              isModel
-                ? isVectorAssisted
-                  ? "bg-orange-900/85 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ff9d54] dark:border dark:border-[#ff7417]/50"
-                  : "bg-purple-900/80 text-purple-100 dark:bg-[#9333ea]/30 dark:text-[#ddb8ff] dark:border dark:border-[#9333ea]/40"
-                : "bg-orange-900/80 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ffb691] dark:border dark:border-[#ff7417]/40"
-            }`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md shadow-xs ${isModel
+              ? isVectorAssisted
+                ? "bg-orange-900/85 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ff9d54] dark:border dark:border-[#ff7417]/50"
+                : "bg-purple-900/80 text-purple-100 dark:bg-[#9333ea]/30 dark:text-[#ddb8ff] dark:border dark:border-[#9333ea]/40"
+              : "bg-orange-900/80 text-orange-100 dark:bg-[#ff7417]/30 dark:text-[#ffb691] dark:border dark:border-[#ff7417]/40"
+              }`}
           >
             {isModel ? (
               <>
@@ -98,7 +97,7 @@ const ProjectCard = ({ project, onDelete }) => {
                 : "Recently Created"}
             </span>
             {project.floors && (
-              <span className="text-zinc-400 dark:text-[#746e65]">• {project.floors} Floors</span>
+              <span className="text-zinc-400 dark:text-[#b4ada3]">• {project.floors} Floors</span>
             )}
           </div>
         </div>

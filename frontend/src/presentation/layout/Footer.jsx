@@ -11,7 +11,7 @@ const Footer = () => {
             <Box className="w-3.5 h-3.5" />
           </div>
           <span className="font-serif font-bold text-zinc-800 dark:text-[#f5f0e8] text-sm">PlanVista3D Unified</span>
-          <span className="text-zinc-400 dark:text-[#746e65]">|</span>
+          <span className="text-zinc-400 dark:text-[#b4ada3]">|</span>
           <span className="dark:text-[#b4ada3]">Architectural 3D Reconstruction & AI Visualization</span>
         </div>
 
@@ -23,7 +23,7 @@ const Footer = () => {
           <Link to="/projects" className="hover:text-zinc-900 dark:hover:text-[#f5f0e8] transition-colors">Gallery</Link>
         </div>
 
-        <div className="flex items-center text-zinc-400 dark:text-[#746e65]">
+        <div className="flex items-center text-zinc-400 dark:text-[#b4ada3]">
           <span>Engineered with React 19, Three.js & Blender 5.0</span>
         </div>
       </div>

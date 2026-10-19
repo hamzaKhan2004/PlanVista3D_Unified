@@ -118,7 +118,7 @@ const SourceBlueprintPanel = ({
             <h4 className="font-serif font-bold text-sm text-zinc-900 dark:text-[#f5f0e8] leading-none">
               Source Blueprint
             </h4>
-            <span className="text-[10px] text-zinc-500 dark:text-[#746e65] font-medium">
+            <span className="text-[10px] text-zinc-500 dark:text-[#b4ada3] font-medium">
               Original Model Input
             </span>
           </div>
@@ -257,11 +257,11 @@ const SourceBlueprintPanel = ({
       ) : (
         /* --- Case 3: Graceful Legacy/Fallback Document State --- */
         <div className="p-3 bg-zinc-50 dark:bg-[#1d1b19] rounded-xl border border-zinc-200 dark:border-[#39342f] text-center space-y-1">
-          <FileText className="w-6 h-6 text-zinc-400 dark:text-[#746e65] mx-auto" />
+          <FileText className="w-6 h-6 text-zinc-400 dark:text-[#b4ada3] mx-auto" />
           <p className="text-xs font-semibold text-zinc-700 dark:text-[#f5f0e8]">
             Source Blueprint Archived
           </p>
-          <p className="text-[10px] text-zinc-500 dark:text-[#746e65]">
+          <p className="text-[10px] text-zinc-500 dark:text-[#b4ada3]">
             3D geometric model reconstructed successfully
           </p>
         </div>
@@ -270,19 +270,19 @@ const SourceBlueprintPanel = ({
       {/* Blueprint Metadata Specifications */}
       <div className="space-y-1.5 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-zinc-500 dark:text-[#746e65]">File Name</span>
+          <span className="text-zinc-500 dark:text-[#b4ada3]">File Name</span>
           <span
             className="font-semibold text-zinc-800 dark:text-[#e6e2de] truncate max-w-[160px]"
             title={rawFileName || "Unavailable"}
           >
-            {rawFileName || <span className="text-zinc-400 dark:text-[#746e65] italic">Saved Project</span>}
+            {rawFileName || <span className="text-zinc-400 dark:text-[#b4ada3] italic">Saved Project</span>}
           </span>
         </div>
 
         {uploadDate && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Uploaded
+            <span className="text-zinc-500 dark:text-[#b4ada3] flex items-center gap-1">
+              <Calendar className="w-3 h-3 text-zinc-400 dark:text-[#b4ada3]" /> Uploaded
             </span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {uploadDate}
@@ -292,8 +292,8 @@ const SourceBlueprintPanel = ({
 
         {floors && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
-              <Layers className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Floors
+            <span className="text-zinc-500 dark:text-[#b4ada3] flex items-center gap-1">
+              <Layers className="w-3 h-3 text-zinc-400 dark:text-[#b4ada3]" /> Floors
             </span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {floors} Levels
@@ -303,8 +303,8 @@ const SourceBlueprintPanel = ({
 
         {wallHeight && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
-              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Wall Height
+            <span className="text-zinc-500 dark:text-[#b4ada3] flex items-center gap-1">
+              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#b4ada3]" /> Wall Height
             </span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallHeight}m
@@ -314,8 +314,8 @@ const SourceBlueprintPanel = ({
 
         {wallThickness && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65] flex items-center gap-1">
-              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#746e65]" /> Wall Thickness
+            <span className="text-zinc-500 dark:text-[#b4ada3] flex items-center gap-1">
+              <Ruler className="w-3 h-3 text-zinc-400 dark:text-[#b4ada3]" /> Wall Thickness
             </span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallThickness}m
@@ -325,7 +325,7 @@ const SourceBlueprintPanel = ({
 
         {imageWidth && imageHeight && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65]">Resolution</span>
+            <span className="text-zinc-500 dark:text-[#b4ada3]">Resolution</span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium font-mono text-[11px]">
               {imageWidth} × {imageHeight} px
             </span>
@@ -334,7 +334,7 @@ const SourceBlueprintPanel = ({
 
         {wallsCount && (
           <div className="flex items-center justify-between">
-            <span className="text-zinc-500 dark:text-[#746e65]">Contours</span>
+            <span className="text-zinc-500 dark:text-[#b4ada3]">Contours</span>
             <span className="text-zinc-700 dark:text-[#e6e2de] font-medium">
               {wallsCount} wall sections
             </span>
@@ -345,7 +345,7 @@ const SourceBlueprintPanel = ({
       {/* Subtle Secondary Download Action */}
       {hasStoredSource && (
         <div className="pt-2 border-t border-[#eae4dc] dark:border-[#39342f] flex items-center justify-between text-[11px]">
-          <span className="text-zinc-500 dark:text-[#746e65]">Source Archive:</span>
+          <span className="text-zinc-500 dark:text-[#b4ada3]">Source Archive:</span>
           <a
             href={downloadUrl}
             target="_blank"
@@ -372,7 +372,7 @@ const SourceBlueprintPanel = ({
         >
           <div className="space-y-4">
             {/* Lightbox Controls */}
-            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#746e65] border-b border-[#eae4dc] dark:border-[#39342f] pb-2">
+            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#b4ada3] border-b border-[#eae4dc] dark:border-[#39342f] pb-2">
               <span className="truncate max-w-xs dark:text-[#e6e2de]">{rawFileName}</span>
               <div className="flex items-center gap-2">
                 <button
@@ -412,7 +412,7 @@ const SourceBlueprintPanel = ({
               />
             </div>
 
-            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#746e65] pt-2 border-t border-[#eae4dc] dark:border-[#39342f]">
+            <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-[#b4ada3] pt-2 border-t border-[#eae4dc] dark:border-[#39342f]">
               <span>Use zoom buttons to inspect blueprint lines and architectural notations</span>
               {downloadUrl && (
                 <a

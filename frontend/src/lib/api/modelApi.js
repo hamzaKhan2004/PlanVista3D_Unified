@@ -184,36 +184,65 @@ export const getImageKitAuth = async () => {
 
 /**
  * Local project persistence for 3D geometric models.
+ * Scoped by authenticated userId to ensure multi-user privacy and prevent cross-account leakage.
  */
-export const saveLocalModelProject = (project) => {
+export const saveLocalModelProject = (project, userId = null) => {
   try {
-    const existing = getLocalModelProjects();
-    const updated = [project, ...existing.filter((p) => p.id !== project.id)];
+    const raw = localStorage.getItem(MODEL_PROJECTS_STORAGE_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
+    const projectId = project.id || project.taskId || `model_${Date.now()}`;
+    const ownerId = userId || project.ownerId || null;
+    const payload = {
+      ...project,
+      id: projectId,
+      ownerId,
+      timestamp: project.timestamp || Date.now(),
+      status: project.status || "completed",
+    };
+    const updated = [
+      payload,
+      ...existing.filter(
+        (p) => p.id !== projectId && (!project.taskId || p.taskId !== project.taskId)
+      ),
+    ];
     localStorage.setItem(MODEL_PROJECTS_STORAGE_KEY, JSON.stringify(updated));
-    return project;
+    return payload;
   } catch (error) {
     console.error("Failed to save local model project:", error);
     return project;
   }
 };
 
-export const getLocalModelProjects = () => {
+export const getLocalModelProjects = (userId = null) => {
+  // If unauthenticated, private models must NOT be exposed
+  if (!userId) {
+    return [];
+  }
   try {
     const data = localStorage.getItem(MODEL_PROJECTS_STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    const list = JSON.parse(data);
+    if (!Array.isArray(list)) return [];
+    // Only return projects belonging to this authenticated user or legacy unclaimed items
+    return list.filter((p) => !p.ownerId || p.ownerId === userId);
   } catch {
     return [];
   }
 };
 
-export const getLocalModelProjectById = (taskId) => {
-  const all = getLocalModelProjects();
+export const clearLocalModelProjectsCache = () => {
+  // Can be used for runtime cache clearing upon logout
+};
+
+export const getLocalModelProjectById = (taskId, userId = null) => {
+  const all = getLocalModelProjects(userId);
   return all.find((p) => p.taskId === taskId || p.id === taskId) || null;
 };
 
-export const deleteLocalModelProject = async (taskId) => {
+export const deleteLocalModelProject = async (taskId, userId = null) => {
   try {
-    const existing = getLocalModelProjects();
+    const raw = localStorage.getItem(MODEL_PROJECTS_STORAGE_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
     const target = existing.find((p) => p.id === taskId || p.taskId === taskId);
     const idToDelete = target?.taskId || taskId;
 

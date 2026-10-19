@@ -2,15 +2,19 @@ import { LOCAL_STORAGE_CAD_PROJECTS_KEY } from "../config/constants";
 import { deleteModelBackendTask } from "../api/modelApiClient";
 
 /**
- * Loads all locally saved 3D CAD model projects from localStorage.
+ * Loads locally saved 3D CAD model projects from localStorage scoped by authenticated userId.
+ * Unauthenticated users receive an empty list to prevent cross-account project leakage.
+ * @param {string|null} userId
  * @returns {Array<Object>}
  */
-export const loadModelProjects = () => {
+export const loadModelProjects = (userId = null) => {
+  if (!userId) return [];
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CAD_PROJECTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((p) => !p.ownerId || p.ownerId === userId);
   } catch (err) {
     console.error("Failed to read local CAD projects from localStorage:", err);
     return [];
@@ -18,17 +22,21 @@ export const loadModelProjects = () => {
 };
 
 /**
- * Saves or updates a 3D CAD model project in localStorage.
+ * Saves or updates a 3D CAD model project in localStorage scoped by userId.
  * @param {Object} project
+ * @param {string|null} userId
  * @returns {Object} saved project
  */
-export const saveModelProject = (project) => {
+export const saveModelProject = (project, userId = null) => {
   try {
-    const existing = loadModelProjects();
+    const raw = localStorage.getItem(LOCAL_STORAGE_CAD_PROJECTS_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
     const projectId = project.id || project.taskId || `cad_${Date.now()}`;
+    const ownerId = userId || project.ownerId || null;
     const payload = {
       ...project,
       id: projectId,
+      ownerId,
       timestamp: project.timestamp || Date.now(),
       status: project.status || "completed",
     };

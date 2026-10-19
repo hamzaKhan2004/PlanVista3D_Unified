@@ -193,7 +193,7 @@ const Navbar = ({ authState, onSignIn, onSignOut, theme, onToggleTheme }) => {
                     : "text-zinc-700 dark:text-[#b4ada3] hover:text-zinc-900 dark:hover:text-[#f5f0e8] hover:bg-zinc-100/70 dark:hover:bg-[#2b2a27]"
                 }`}
               >
-                {Icon && <Icon className={`w-4 h-4 ${isActive ? "text-orange-500 dark:text-white" : "text-zinc-400 dark:text-[#746e65]"}`} />}
+                {Icon && <Icon className={`w-4 h-4 ${isActive ? "text-orange-500 dark:text-white" : "text-zinc-400 dark:text-[#b4ada3]"}`} />}
                 {label}
               </Link>
             );
@@ -248,7 +248,7 @@ const Navbar = ({ authState, onSignIn, onSignOut, theme, onToggleTheme }) => {
                   variant="ghost"
                   size="sm"
                   onClick={onSignIn}
-                  className="flex items-center justify-center gap-1.5 text-zinc-700 w-full"
+                  className="flex items-center justify-center gap-1.5 text-zinc-700 dark:text-[#e6e2de] w-full"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>Log In with Puter</span>

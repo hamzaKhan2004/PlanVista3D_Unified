@@ -1562,7 +1562,7 @@ const VectorGeometryPreviewModal = ({
             </div>
 
             {/* Blueprint Overlay Visibility & Opacity Controls */}
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#746e65] px-1 pt-0.5">
+            <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#b4ada3] px-1 pt-0.5">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -1727,7 +1727,7 @@ const VectorGeometryPreviewModal = ({
                   </div>
                 )}
 
-                <div className="text-[10px] text-zinc-500 dark:text-[#746e65] pt-0.5 flex justify-between font-mono">
+                <div className="text-[10px] text-zinc-500 dark:text-[#b4ada3] pt-0.5 flex justify-between font-mono">
                   <span>P1: ({selectedSegment.x1}, {selectedSegment.y1})</span>
                   <span>P2: ({selectedSegment.x2}, {selectedSegment.y2})</span>
                 </div>
@@ -1735,11 +1735,11 @@ const VectorGeometryPreviewModal = ({
             ) : (
               /* Empty Inspector Box */
               <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-[#1d1b19] border border-dashed border-zinc-200 dark:border-[#39342f] text-center space-y-1">
-                <MousePointer className="w-4 h-4 text-zinc-400 dark:text-[#746e65] mx-auto" />
+                <MousePointer className="w-4 h-4 text-zinc-400 dark:text-[#b4ada3] mx-auto" />
                 <p className="text-xs font-semibold text-zinc-700 dark:text-[#f5f0e8]">
                   No Wall Selected
                 </p>
-                <p className="text-[11px] text-zinc-500 dark:text-[#746e65]">
+                <p className="text-[11px] text-zinc-500 dark:text-[#b4ada3]">
                   Click any wall on the canvas to inspect coordinates, align axes, adjust length, cut openings, or convert into a curve.
                 </p>
               </div>
@@ -1804,7 +1804,7 @@ const VectorGeometryPreviewModal = ({
                   onChange={(e) => setCalibratedWallThickness(parseFloat(e.target.value))}
                   className="w-full accent-orange-500 cursor-pointer"
                 />
-                <span className="text-[10px] text-zinc-400 dark:text-[#746e65] mt-0.5 block">
+                <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] mt-0.5 block">
                   Scales thickness in 2D preview and extruded 3D mesh ({Math.round(calibratedWallThickness * 100)} cm).
                 </span>
               </div>
@@ -1846,8 +1846,8 @@ const VectorGeometryPreviewModal = ({
 
         {/* Modal Sticky Bottom Action Footer */}
         <div className="shrink-0 sticky bottom-0 bg-[#fdfbf7] dark:bg-[#1d1b19] pt-3 pb-1 border-t border-[#eae4dc] dark:border-[#39342f] flex flex-wrap items-center justify-between gap-3 z-10">
-          <div className="text-[11px] text-zinc-500 dark:text-[#746e65]">
-            <span className="font-semibold text-zinc-700 dark:text-[#b4ada3]">Shortcuts:</span> V: Select • L: Line • C: Curve • X: Scissors • Del: Delete • H: Horizontal • O: Vertical • Ctrl+Z: Undo
+          <div className="text-[11px] text-zinc-500 dark:text-[#b4ada3]">
+            <span className="font-semibold text-zinc-700 dark:text-[#f5f0e8]">Shortcuts:</span> V: Select • L: Line • C: Curve • X: Scissors • Del: Delete • H: Horizontal • O: Vertical • Ctrl+Z: Undo
           </div>
 
           <div className="flex items-center gap-3">

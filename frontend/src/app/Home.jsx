@@ -13,11 +13,13 @@ import {
 import Button from "../presentation/ui/Button";
 import UploadFloorPlan from "../features/image-generation/UploadFloorPlan";
 import ProjectCard from "../presentation/projects/ProjectCard";
+import { useAuth } from "../presentation/layout/AppLayout";
 import { createProject, getProjects } from "../infrastructure/puter/puterStorage";
 import { loadModelProjects } from "../infrastructure/storage/projectStorage";
 
 const Home = () => {
   const navigate = useNavigate();
+  const { isSignedIn, userId, isLoading: isAuthLoading } = useAuth();
   const [recentProjects, setRecentProjects] = useState([]);
 
   const handleUploadComplete = async (base64Image) => {
@@ -30,6 +32,7 @@ const Home = () => {
         name,
         sourceImage: base64Image,
         renderedImage: undefined,
+        ownerId: userId || undefined,
         timestamp: Date.now(),
       };
 
@@ -58,21 +61,34 @@ const Home = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+    if (isAuthLoading) return;
+
+    if (!isSignedIn || !userId) {
+      setRecentProjects([]);
+      return;
+    }
+
     const fetchRecent = async () => {
       try {
         const puterItems = await getProjects();
-        const formattedPuter = (puterItems || []).slice(0, 4).map((i) => ({
-          ...i,
-          type: "image_2d",
-        }));
+        const formattedPuter = (puterItems || [])
+          .filter((i) => !i.ownerId || i.ownerId === userId)
+          .slice(0, 4)
+          .map((i) => ({
+            ...i,
+            type: "image_2d",
+          }));
 
-        const localModels = (loadModelProjects() || []).slice(0, 4).map((i) => ({
+        const localModels = (loadModelProjects(userId) || []).slice(0, 4).map((i) => ({
           ...i,
           type: "model_3d",
         }));
 
+        if (!isMounted) return;
+
         const combined = [...formattedPuter, ...localModels]
-          .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+          .sort((a, b) => (new Date(b.updatedAt || b.timestamp || 0).getTime()) - (new Date(a.updatedAt || a.timestamp || 0).getTime()))
           .slice(0, 6);
 
         setRecentProjects(combined);
@@ -82,7 +98,11 @@ const Home = () => {
     };
 
     fetchRecent();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isSignedIn, userId, isAuthLoading]);
 
   return (
     <div className="w-full">

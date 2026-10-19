@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderKanban, Sparkles, Box, Plus, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { FolderKanban, Sparkles, Box, Plus, Trash2, AlertTriangle, Loader2, LogIn } from "lucide-react";
 import ProjectCard from "../../presentation/projects/ProjectCard";
 import Button from "../../presentation/ui/Button";
 import Modal from "../../presentation/ui/Modal";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import { getProjects, deleteProject } from "../../lib/puter/puter.action";
 import { getLocalModelProjects, deleteLocalModelProject } from "../../lib/api/modelApi";
 
 const ProjectGallery = () => {
+  const { isSignedIn, userId, isLoading: isAuthLoading, signIn } = useAuth();
   const [filter, setFilter] = useState("all"); // "all" | "image" | "model"
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ const ProjectGallery = () => {
 
       if (isModel) {
         const idToDelete = projectToDelete.taskId || projectToDelete.id;
-        await deleteLocalModelProject(idToDelete);
+        await deleteLocalModelProject(idToDelete, userId);
       } else {
         await deleteProject({ id: projectToDelete.id });
       }
@@ -56,38 +58,58 @@ const ProjectGallery = () => {
   };
 
   useEffect(() => {
+    let isMounted = true;
+
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!isSignedIn || !userId) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
+
     const fetchAllProjects = async () => {
       setLoading(true);
       try {
         // Fetch Puter image projects
         const puterItems = await getProjects();
-        const formattedPuterItems = (puterItems || []).map((item) => ({
-          ...item,
-          type: "image",
-        }));
+        const formattedPuterItems = (puterItems || [])
+          .filter((item) => !item.ownerId || item.ownerId === userId)
+          .map((item) => ({
+            ...item,
+            type: "image",
+          }));
 
-        // Fetch local 3D model projects
-        const localModels = getLocalModelProjects() || [];
+        // Fetch local 3D model projects scoped by userId
+        const localModels = getLocalModelProjects(userId) || [];
         const formattedLocalModels = localModels.map((item) => ({
           ...item,
           type: "model",
         }));
 
+        if (!isMounted) return;
+
         // Combine and sort by timestamp descending
         const combined = [...formattedPuterItems, ...formattedLocalModels].sort(
-          (a, b) => (b.timestamp || 0) - (a.timestamp || 0)
+          (a, b) => (new Date(b.updatedAt || b.timestamp || 0).getTime()) - (new Date(a.updatedAt || a.timestamp || 0).getTime())
         );
 
         setProjects(combined);
       } catch (err) {
         console.error("Failed to load projects:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchAllProjects();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isSignedIn, userId, isAuthLoading]);
 
   const filteredProjects = projects.filter((p) => {
     if (filter === "image") return p.type === "image";
@@ -153,6 +175,29 @@ const ProjectGallery = () => {
         <div className="min-h-[40vh] flex flex-col items-center justify-center space-y-3">
           <div className="w-8 h-8 border-3 border-orange-500 dark:border-[#ff7417] border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-zinc-500 dark:text-[#b4ada3] font-medium">Loading project catalog...</p>
+        </div>
+      ) : !isSignedIn ? (
+        <div className="bg-white dark:bg-[#1d1b19] border border-[#eae4dc] dark:border-[#39342f] rounded-3xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-orange-100 dark:bg-[#ff7417]/20 text-orange-600 dark:text-[#ff7417] flex items-center justify-center mx-auto">
+            <FolderKanban className="w-6 h-6" />
+          </div>
+          <h3 className="font-serif text-2xl font-bold text-zinc-900 dark:text-[#f5f0e8]">
+            Sign in to View Your Projects
+          </h3>
+          <p className="text-xs text-zinc-600 dark:text-[#b4ada3] leading-relaxed">
+            Your architectural visualizations and 3D CAD models are securely linked to your Puter account. Sign in to view and manage your private workspace.
+          </p>
+          <div className="pt-2">
+            <Button
+              variant="primary"
+              size="md"
+              onClick={signIn}
+              className="inline-flex items-center gap-2"
+            >
+              <LogIn className="w-4 h-4" />
+              Log In with Puter
+            </Button>
+          </div>
         </div>
       ) : filteredProjects.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
