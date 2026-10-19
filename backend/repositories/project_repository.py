@@ -93,7 +93,8 @@ class ProjectRepository:
 
     def get_project(self, project_id: str, owner_id: str) -> Optional[Dict[str, Any]]:
         """
-        Retrieves a project by its project_id strictly scoped to the owner_id.
+        Retrieves a project strictly scoped to the owner_id.
+        Queries primary project_id first, falling back to alternate identifier fields.
         Rejects missing or empty owner_id with ValueError.
         """
         collection = self._get_collection("projects")
@@ -103,13 +104,20 @@ class ProjectRepository:
         if not owner_id or not str(owner_id).strip():
             raise ValueError("Valid, non-empty owner_id is required to retrieve project")
 
-        query: Dict[str, Any] = {
-            "project_id": str(project_id),
-            "owner_id": str(owner_id).strip(),
-        }
+        pid = str(project_id).strip()
+        clean_owner = str(owner_id).strip()
 
         try:
-            doc = collection.find_one(query)
+            # 1. Primary indexed lookup by project_id and owner_id
+            doc = collection.find_one({"project_id": pid, "owner_id": clean_owner})
+            if doc is not None:
+                return _clean_doc(doc)
+
+            # 2. Resilient fallback for documents stored under alternate identifiers
+            doc = collection.find_one({
+                "$or": [{"id": pid}, {"taskId": pid}, {"task_id": pid}],
+                "owner_id": clean_owner,
+            })
             return _clean_doc(doc)
         except PyMongoError as e:
             logger.error(f"Failed to query project {project_id}: {e.__class__.__name__}")
@@ -118,18 +126,50 @@ class ProjectRepository:
     def get_project_owner(self, project_id: str) -> Optional[str]:
         """
         Retrieves the owner_id of a project if it exists in the database.
+        Checks primary project_id first, then alternate identifier fields.
         Returns None if the project does not exist or MongoDB is unavailable.
         """
         collection = self._get_collection("projects")
         if collection is None or not project_id:
             return None
 
+        pid = str(project_id).strip()
         try:
-            doc = collection.find_one({"project_id": str(project_id)}, {"owner_id": 1})
+            # 1. Primary lookup
+            doc = collection.find_one({"project_id": pid}, {"owner_id": 1})
+            if doc and "owner_id" in doc:
+                return str(doc["owner_id"])
+
+            # 2. Resilient fallback
+            doc = collection.find_one(
+                {"$or": [{"id": pid}, {"taskId": pid}, {"task_id": pid}]},
+                {"owner_id": 1}
+            )
             return str(doc["owner_id"]) if doc and "owner_id" in doc else None
         except PyMongoError as e:
             logger.error(f"Failed to query project owner for {project_id}: {e.__class__.__name__}")
             raise DatabaseUnavailableError(f"Database error during project owner lookup: {e}")
+
+    def get_project_unscoped(self, project_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a project document by any valid identifier without owner scoping.
+        Used solely for resolving project metadata on authorized public share tokens.
+        """
+        collection = self._get_collection("projects")
+        if collection is None or not project_id:
+            return None
+
+        pid = str(project_id).strip()
+        try:
+            doc = collection.find_one({"project_id": pid})
+            if doc is not None:
+                return _clean_doc(doc)
+
+            doc = collection.find_one({"$or": [{"id": pid}, {"taskId": pid}, {"task_id": pid}]})
+            return _clean_doc(doc)
+        except PyMongoError as e:
+            logger.error(f"Failed to query unscoped project {project_id}: {e.__class__.__name__}")
+            return None
 
     def list_projects_by_owner(
         self,
@@ -179,10 +219,8 @@ class ProjectRepository:
         if not owner_id or not str(owner_id).strip():
             raise ValueError("Valid, non-empty owner_id is required to update project")
 
-        query: Dict[str, Any] = {
-            "project_id": str(project_id),
-            "owner_id": str(owner_id).strip(),
-        }
+        pid = str(project_id).strip()
+        clean_owner = str(owner_id).strip()
 
         doc_updates = dict(updates)
         doc_updates["updated_at"] = int(time.time() * 1000)
@@ -191,7 +229,19 @@ class ProjectRepository:
         doc_updates.pop("owner_id", None)
 
         try:
-            result = collection.update_one(query, {"$set": doc_updates})
+            # 1. Primary update
+            result = collection.update_one(
+                {"project_id": pid, "owner_id": clean_owner},
+                {"$set": doc_updates}
+            )
+            if result.matched_count > 0:
+                return True
+
+            # 2. Resilient fallback
+            result = collection.update_one(
+                {"$or": [{"id": pid}, {"taskId": pid}, {"task_id": pid}], "owner_id": clean_owner},
+                {"$set": doc_updates}
+            )
             return result.matched_count > 0
         except PyMongoError as e:
             logger.error(f"Failed to update project {project_id}: {e.__class__.__name__}")
@@ -210,15 +260,22 @@ class ProjectRepository:
             raise ValueError("Valid, non-empty owner_id is required to delete project")
 
         clean_owner_id = str(owner_id).strip()
-        query: Dict[str, Any] = {
-            "project_id": str(project_id),
-            "owner_id": clean_owner_id,
-        }
+        pid = str(project_id).strip()
 
         try:
-            result = collection.delete_one(query)
+            # 1. Primary delete
+            result = collection.delete_one({"project_id": pid, "owner_id": clean_owner_id})
             if result.deleted_count > 0:
-                # Clean up associated assets and jobs strictly scoped to owner
+                self.delete_assets_by_project(project_id, clean_owner_id)
+                self.delete_jobs_by_project(project_id, clean_owner_id)
+                return True
+
+            # 2. Resilient fallback
+            result = collection.delete_one({
+                "$or": [{"id": pid}, {"taskId": pid}, {"task_id": pid}],
+                "owner_id": clean_owner_id,
+            })
+            if result.deleted_count > 0:
                 self.delete_assets_by_project(project_id, clean_owner_id)
                 self.delete_jobs_by_project(project_id, clean_owner_id)
                 return True

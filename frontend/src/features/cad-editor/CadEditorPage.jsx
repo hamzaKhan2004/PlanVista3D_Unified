@@ -23,6 +23,7 @@ import CadPropertiesPanel from "../../presentation/cad/CadPropertiesPanel";
 import SceneHierarchyPanel from "../../presentation/cad/SceneHierarchyPanel";
 import DimensionOverlay from "../../presentation/cad/DimensionOverlay";
 import SourceBlueprintPanel from "../../presentation/cad/SourceBlueprintPanel";
+import ArScannerModal from "../../presentation/cad/ArScannerModal";
 import CadViewport from "./CadViewport";
 import Button from "../../presentation/ui/Button";
 import Modal from "../../presentation/ui/Modal";
@@ -77,6 +78,7 @@ const CadEditorPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArScannerModal, setShowArScannerModal] = useState(false);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteProjectError, setDeleteProjectError] = useState("");
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
@@ -1252,6 +1254,7 @@ const CadEditorPage = () => {
         onSaveProject={handleSaveProject}
         onExportGlb={handleExportGlb}
         onDeleteProject={() => setShowDeleteModal(true)}
+        onOpenArScanner={() => setShowArScannerModal(true)}
         isLeftPanelOpen={isLeftPanelOpen}
         onToggleLeftPanel={() => setIsLeftPanelOpen((prev) => !prev)}
         isRightPanelOpen={isRightPanelOpen}
@@ -1714,6 +1717,19 @@ const CadEditorPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* AR Scanner & QR Code Modal */}
+      {showArScannerModal && (
+        <ArScannerModal
+          isOpen={showArScannerModal}
+          onClose={() => setShowArScannerModal(false)}
+          project={{
+            taskId: activeTaskId,
+            id: activeTaskId,
+            name: modelProject?.name || `Model ${activeTaskId?.slice(0, 8) || ""}`,
+          }}
+        />
+      )}
     </div>
   );
 };

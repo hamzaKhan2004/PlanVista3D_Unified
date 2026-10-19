@@ -4,6 +4,7 @@ import { FolderKanban, Sparkles, Box, Plus, Trash2, AlertTriangle, Loader2, LogI
 import ProjectCard from "../../presentation/projects/ProjectCard";
 import Button from "../../presentation/ui/Button";
 import Modal from "../../presentation/ui/Modal";
+import ArScannerModal from "../../presentation/cad/ArScannerModal";
 import { useAuth } from "../../presentation/layout/AppLayout";
 import { getProjects, deleteProject } from "../../lib/puter/puter.action";
 import { getLocalModelProjects, deleteLocalModelProject } from "../../lib/api/modelApi";
@@ -14,6 +15,7 @@ const ProjectGallery = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [projectToDelete, setProjectToDelete] = useState(null);
+  const [arProject, setArProject] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
@@ -206,6 +208,7 @@ const ProjectGallery = () => {
               key={project.id || project.taskId}
               project={project}
               onDelete={setProjectToDelete}
+              onOpenArScanner={setArProject}
             />
           ))}
         </div>
@@ -303,6 +306,15 @@ const ProjectGallery = () => {
           </div>
         </div>
       </Modal>
+
+      {/* AR Scanner Modal */}
+      {arProject && (
+        <ArScannerModal
+          isOpen={!!arProject}
+          onClose={() => setArProject(null)}
+          project={arProject}
+        />
+      )}
     </div>
   );
 };

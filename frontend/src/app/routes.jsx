@@ -10,6 +10,7 @@ const GenerateModelPage = lazy(() => import("../features/model-generation/Genera
 const ImageVisualizer = lazy(() => import("../features/image-generation/ImageVisualizer"));
 const CadEditorPage = lazy(() => import("../features/cad-editor/CadEditorPage"));
 const ProjectGallery = lazy(() => import("../features/project-gallery/ProjectGallery"));
+const ArViewPage = lazy(() => import("../features/ar-view/ArViewPage"));
 
 const AppRoutes = () => {
   return (
@@ -69,6 +70,30 @@ const AppRoutes = () => {
           element={
             <Suspense fallback={<LoadingSpinner label="Loading Project Gallery..." />}>
               <ProjectGallery />
+            </Suspense>
+          }
+        />
+        <Route
+          path="ar-view/:identifier"
+          element={
+            <Suspense fallback={<LoadingSpinner label="Loading 3D AR Model..." />}>
+              <ArViewPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="ar-view"
+          element={
+            <Suspense fallback={<LoadingSpinner label="Loading 3D AR Model..." />}>
+              <ArViewPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="ar/:identifier"
+          element={
+            <Suspense fallback={<LoadingSpinner label="Loading 3D AR Model..." />}>
+              <ArViewPage />
             </Suspense>
           }
         />

@@ -37,3 +37,22 @@ export const API_BASE_URL = !rawApiBase || rawApiBase === "/api"
 // Supported file extensions
 export const SUPPORTED_MODEL_FORMATS = [".dxf", ".png", ".jpg", ".jpeg"];
 export const SUPPORTED_IMAGE_FORMATS = [".png", ".jpg", ".jpeg"];
+
+/**
+ * Canonical public frontend origin for share links and QR codes.
+ * Respects VITE_PUBLIC_URL or VITE_APP_URL if defined,
+ * falls back to window.location.origin in browser,
+ * and defaults to production deployment URL (https://planvista3d.onrender.com).
+ */
+export const getPublicFrontendOrigin = () => {
+  const envUrl = (
+    import.meta.env.VITE_PUBLIC_URL ||
+    import.meta.env.VITE_APP_URL ||
+    ""
+  ).trim().replace(/\/+$/, "");
+  if (envUrl) return envUrl;
+  if (typeof window !== "undefined" && window.location && window.location.origin) {
+    return window.location.origin;
+  }
+  return "https://planvista3d.onrender.com";
+};

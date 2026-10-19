@@ -2,7 +2,7 @@ import time
 import os
 import uuid
 import json
-from flask import request, jsonify, send_from_directory, Response
+from flask import request, jsonify, send_from_directory, Response, redirect
 from werkzeug.utils import secure_filename
 from backend.config.config import UPLOAD_FOLDER, OUTPUT_FOLDER, resolve_blender_path, is_production_environment
 from backend.schemas.validation import allowed_file, parse_upload_params
@@ -17,6 +17,7 @@ from backend.services.imagekit_service import (
 )
 from backend.services.s3_service import s3_service, S3ServiceError
 from backend.repositories.project_repository import project_repository
+from backend.repositories.share_repository import share_repository
 from backend.middleware.auth import get_authenticated_user
 
 class ModelController:
@@ -1019,3 +1020,460 @@ class ModelController:
                 },
             }
         )
+
+    @staticmethod
+    def create_model_share(task_id: str):
+        """
+        Creates or retrieves an active share token for a 3D model project.
+        Enforces user authentication and strict ownership verification.
+        """
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({
+                "error": "Unauthorized",
+                "code": "AUTH_REQUIRED",
+                "message": "Valid authentication token required",
+            }), 401
+
+        owner_id = user["user_id"]
+
+        # 1. If task_id is already an active share token, return it if caller is the owner
+        existing_share = share_repository.get_share(task_id)
+        if existing_share and existing_share.get("is_active"):
+            if existing_share.get("owner_id") == owner_id:
+                return jsonify({
+                    "success": True,
+                    "share_token": existing_share["share_token"],
+                    "is_active": existing_share["is_active"],
+                    "created_at": existing_share["created_at"],
+                    "expires_at": existing_share.get("expires_at"),
+                }), 200
+            else:
+                return jsonify({
+                    "error": "Forbidden",
+                    "code": "FORBIDDEN",
+                    "message": "You do not have permission to share this model",
+                }), 403
+
+        # 2. Verify project ownership in MongoDB or task_repository
+        if mongo_manager.is_configured():
+            try:
+                project_owner = project_repository.get_project_owner(task_id)
+            except Exception as e:
+                print(f"[SHARE_CREATE] Error verifying project owner: {e}")
+                return jsonify({
+                    "error": f"Database error verifying project: {str(e)}",
+                    "code": "DB_ERROR",
+                }), 500
+
+            if project_owner is None:
+                task_data = task_repository.get(task_id)
+                if task_data:
+                    task_owner = task_data.get("owner_id")
+                    if task_owner and task_owner != owner_id:
+                        return jsonify({
+                            "error": "Forbidden",
+                            "code": "FORBIDDEN",
+                            "message": "You do not have permission to share this model",
+                        }), 403
+                elif not os.path.exists(os.path.join(OUTPUT_FOLDER, f"{task_id}_model.glb")):
+                    return jsonify({
+                        "error": "Project not found",
+                        "code": "PROJECT_NOT_FOUND",
+                    }), 404
+            elif project_owner != owner_id:
+                return jsonify({
+                    "error": "Forbidden",
+                    "code": "FORBIDDEN",
+                    "message": "You do not have permission to share this model",
+                }), 403
+        else:
+            task_data = task_repository.get(task_id)
+            if task_data:
+                task_owner = task_data.get("owner_id")
+                if task_owner and task_owner != owner_id:
+                    return jsonify({
+                        "error": "Forbidden",
+                        "code": "FORBIDDEN",
+                        "message": "You do not have permission to share this model",
+                    }), 403
+            elif not os.path.exists(os.path.join(OUTPUT_FOLDER, f"{task_id}_model.glb")):
+                return jsonify({
+                    "error": "Project not found",
+                    "code": "PROJECT_NOT_FOUND",
+                }), 404
+
+        share_record = share_repository.create_or_get_share(task_id, owner_id)
+        return jsonify({
+            "success": True,
+            "share_token": share_record["share_token"],
+            "is_active": share_record["is_active"],
+            "created_at": share_record["created_at"],
+            "expires_at": share_record.get("expires_at"),
+        }), 200
+
+    @staticmethod
+    def revoke_model_share(task_id: str):
+        """
+        Revokes (deactivates) all public share links for a given 3D model project.
+        Enforces user authentication and ownership.
+        """
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({
+                "error": "Unauthorized",
+                "code": "AUTH_REQUIRED",
+                "message": "Valid authentication token required",
+            }), 401
+
+        owner_id = user["user_id"]
+
+        # Support revocation by share_token or project_id
+        target_project_id = task_id
+        existing_share = share_repository.get_share(task_id)
+        if existing_share:
+            target_project_id = existing_share["project_id"]
+            if existing_share.get("owner_id") and existing_share["owner_id"] != owner_id:
+                return jsonify({
+                    "error": "Forbidden",
+                    "code": "FORBIDDEN",
+                    "message": "You do not have permission to revoke this share link",
+                }), 403
+
+        if mongo_manager.is_configured():
+            try:
+                project_owner = project_repository.get_project_owner(target_project_id)
+                if project_owner is not None and project_owner != owner_id:
+                    return jsonify({
+                        "error": "Forbidden",
+                        "code": "FORBIDDEN",
+                        "message": "You do not have permission to revoke this share link",
+                    }), 403
+            except Exception as e:
+                print(f"[SHARE_REVOKE] Error verifying project owner: {e}")
+                return jsonify({"error": "Database error verifying project", "code": "DB_ERROR"}), 500
+
+        task_data = task_repository.get(target_project_id)
+        if task_data and task_data.get("owner_id") and task_data["owner_id"] != owner_id:
+            return jsonify({
+                "error": "Forbidden",
+                "code": "FORBIDDEN",
+                "message": "You do not have permission to revoke this share link",
+            }), 403
+
+        revoked = share_repository.revoke_share(target_project_id, owner_id)
+        return jsonify({
+            "success": True,
+            "message": "AR share link revoked successfully",
+            "revoked": revoked,
+        }), 200
+
+    @staticmethod
+    def get_model_share_status(task_id: str):
+        """
+        Checks if an active public AR share link exists for a 3D model project.
+        Enforces user authentication and ownership.
+        """
+        user = get_authenticated_user(request)
+        if user is None:
+            return jsonify({
+                "error": "Unauthorized",
+                "code": "AUTH_REQUIRED",
+                "message": "Valid authentication token required",
+            }), 401
+
+        owner_id = user["user_id"]
+        share = share_repository.get_share_by_project(task_id, owner_id)
+        if not share:
+            s = share_repository.get_share(task_id)
+            if s and s.get("owner_id") == owner_id:
+                share = s
+
+        return jsonify({
+            "success": True,
+            "is_shared": bool(share and share.get("is_active")),
+            "share_token": share["share_token"] if share and share.get("is_active") else None,
+            "expires_at": share.get("expires_at") if share else None,
+        }), 200
+
+    @staticmethod
+    def get_shared_model(share_token: str):
+        """
+        Public endpoint for loading a 3D model via an AR share token.
+        Resolves the stable share token to a short-lived presigned URL or streaming path.
+        Does NOT reveal user identities, private storage paths, or other projects.
+        """
+        share = share_repository.get_share(share_token)
+        if not share:
+            share = share_repository.get_share_by_project(share_token)
+
+        if not share:
+            return jsonify({
+                "error": "AR share link not found or invalid",
+                "code": "SHARE_NOT_FOUND",
+            }), 404
+
+        if not share.get("is_active"):
+            return jsonify({
+                "error": "This AR share link has expired or was revoked by the model owner",
+                "code": "SHARE_REVOKED_OR_EXPIRED",
+            }), 404
+
+        task_id = share["project_id"]
+        owner_id = share["owner_id"]
+        actual_share_token = share["share_token"]
+        proj_name = "PlanVista 3D CAD Model"
+
+        # Construct absolute URLs for local streaming & USDZ
+        base_url = request.host_url.rstrip("/") if request.host_url else ""
+        local_download_url = f"{base_url}/api/share/model/{actual_share_token}/download" if base_url else f"/api/share/model/{actual_share_token}/download"
+        usdz_download_url = f"{base_url}/api/share/model/{actual_share_token}/usdz" if base_url else f"/api/share/model/{actual_share_token}/usdz"
+
+        # Check MongoDB project metadata
+        if mongo_manager.is_configured():
+            try:
+                proj = project_repository.get_project(task_id, owner_id=owner_id)
+                if not proj:
+                    proj = project_repository.get_project_unscoped(task_id)
+
+                if isinstance(proj, dict) and proj.get("name"):
+                    proj_name = str(proj.get("name"))
+
+                if proj:
+                    # 1. Check model_ref
+                    if proj.get("model_ref"):
+                        mref = proj["model_ref"]
+                        if mref.get("storage_provider") == "s3" and s3_service.is_configured():
+                            skey = mref.get("key")
+                            if skey and s3_service.object_exists(skey):
+                                presigned_url = s3_service.generate_presigned_url(skey, expiry_seconds=900)
+                                return jsonify({
+                                    "success": True,
+                                    "project_name": proj_name,
+                                    "share_token": actual_share_token,
+                                    "model_url": presigned_url,
+                                    "usdz_url": usdz_download_url,
+                                    "storage_provider": "s3",
+                                    "expires_in": 900,
+                                    "is_ar_compatible": True,
+                                }), 200
+
+                    # 2. Check 3d_model assets
+                    assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
+                    model_assets = [a for a in assets if a.get("asset_type") == "3d_model" and a.get("storage_key")]
+                    if model_assets:
+                        latest = model_assets[-1]
+                        if latest.get("storage_provider") == "s3" and s3_service.is_configured():
+                            skey = latest["storage_key"]
+                            if s3_service.object_exists(skey):
+                                presigned_url = s3_service.generate_presigned_url(skey, expiry_seconds=900)
+                                return jsonify({
+                                    "success": True,
+                                    "project_name": proj_name,
+                                    "share_token": actual_share_token,
+                                    "model_url": presigned_url,
+                                    "usdz_url": usdz_download_url,
+                                    "storage_provider": "s3",
+                                    "expires_in": 900,
+                                    "is_ar_compatible": True,
+                                }), 200
+            except Exception as e:
+                print(f"[SHARED_MODEL] Notice querying Mongo: {e}")
+
+        # Check task_repository / local storage
+        task_data = task_repository.get(task_id)
+        if task_data:
+            if task_data.get("s3_key") and s3_service.is_configured():
+                try:
+                    skey = task_data["s3_key"]
+                    if s3_service.object_exists(skey):
+                        presigned_url = s3_service.generate_presigned_url(skey, expiry_seconds=900)
+                        return jsonify({
+                            "success": True,
+                            "project_name": proj_name,
+                            "share_token": actual_share_token,
+                            "model_url": presigned_url,
+                            "usdz_url": usdz_download_url,
+                            "storage_provider": "s3",
+                            "expires_in": 900,
+                            "is_ar_compatible": True,
+                        }), 200
+                except Exception as e:
+                    print(f"[SHARED_MODEL] S3 presign error: {e}")
+
+            model_filename = task_data.get("model_file") or f"{task_id}_model.glb"
+            local_path = os.path.join(OUTPUT_FOLDER, model_filename)
+            if os.path.exists(local_path):
+                return jsonify({
+                    "success": True,
+                    "project_name": proj_name,
+                    "share_token": actual_share_token,
+                    "model_url": local_download_url,
+                    "usdz_url": usdz_download_url,
+                    "storage_provider": "local",
+                    "expires_in": 900,
+                    "is_ar_compatible": True,
+                }), 200
+
+        # Ephemeral restart fallback for existing local files
+        fallback_local = os.path.join(OUTPUT_FOLDER, f"{task_id}_model.glb")
+        if os.path.exists(fallback_local):
+            return jsonify({
+                "success": True,
+                "project_name": proj_name,
+                "share_token": actual_share_token,
+                "model_url": local_download_url,
+                "usdz_url": usdz_download_url,
+                "storage_provider": "local",
+                "expires_in": 900,
+                "is_ar_compatible": True,
+            }), 200
+
+        return jsonify({
+            "error": "3D model asset could not be located on storage",
+            "code": "MODEL_FILE_NOT_FOUND",
+        }), 404
+
+    @staticmethod
+    def download_shared_model(share_token: str):
+        """
+        Public streaming endpoint for a shared 3D model.
+        Directs to S3 presigned URL or streams local GLB.
+        Attaches permissive CORS headers for Scene Viewer and WebXR requests.
+        """
+        share = share_repository.get_share(share_token)
+        if not share or not share.get("is_active"):
+            return jsonify({
+                "error": "AR share link invalid, expired, or revoked",
+                "code": "SHARE_REVOKED_OR_EXPIRED",
+            }), 404
+
+        task_id = share["project_id"]
+        owner_id = share["owner_id"]
+
+        # Check local file first
+        safe_filename = f"{task_id}_model.glb"
+        local_path = os.path.join(OUTPUT_FOLDER, safe_filename)
+        if os.path.exists(local_path):
+            resp = send_from_directory(
+                OUTPUT_FOLDER, safe_filename, as_attachment=False, mimetype="model/gltf-binary"
+            )
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            return resp
+
+        # Check S3 asset
+        if s3_service.is_configured():
+            skey = None
+            if mongo_manager.is_configured():
+                try:
+                    proj = project_repository.get_project(task_id, owner_id=owner_id)
+                    if not proj:
+                        proj = project_repository.get_project_unscoped(task_id)
+                    if proj and proj.get("model_ref"):
+                        skey = proj["model_ref"].get("key")
+                except Exception:
+                    pass
+
+            if not skey:
+                task_data = task_repository.get(task_id)
+                if task_data and task_data.get("s3_key"):
+                    skey = task_data.get("s3_key")
+
+            if skey and s3_service.object_exists(skey):
+                presigned = s3_service.generate_presigned_url(skey, expiry_seconds=900)
+                return redirect(presigned, code=302)
+
+        return jsonify({
+            "error": "3D model file not found",
+            "code": "MODEL_FILE_NOT_FOUND",
+        }), 404
+
+    @staticmethod
+    def download_shared_usdz(share_token: str):
+        """
+        Public streaming endpoint for iOS AR Quick Look (.usdz).
+        Directs to USDZ file if available, or dynamically converts GLB to USDZ using Blender.
+        """
+        share = share_repository.get_share(share_token)
+        if not share or not share.get("is_active"):
+            return jsonify({
+                "error": "AR share link invalid, expired, or revoked",
+                "code": "SHARE_REVOKED_OR_EXPIRED",
+            }), 404
+
+        task_id = share["project_id"]
+        owner_id = share["owner_id"]
+
+        usdz_filename = f"{task_id}_model.usdz"
+        usdz_path = os.path.join(OUTPUT_FOLDER, usdz_filename)
+
+        if os.path.exists(usdz_path):
+            resp = send_from_directory(
+                OUTPUT_FOLDER, usdz_filename, as_attachment=False, mimetype="model/vnd.usdz+zip"
+            )
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            return resp
+
+        # Check if we have the GLB to convert
+        glb_filename = f"{task_id}_model.glb"
+        glb_path = os.path.join(OUTPUT_FOLDER, glb_filename)
+
+        if not os.path.exists(glb_path) and s3_service.is_configured():
+            try:
+                skey = None
+                if mongo_manager.is_configured():
+                    proj = project_repository.get_project(task_id, owner_id=owner_id)
+                    if not proj:
+                        proj = project_repository.get_project_unscoped(task_id)
+                    if proj and proj.get("model_ref"):
+                        skey = proj["model_ref"].get("key")
+                if not skey:
+                    td = task_repository.get(task_id)
+                    if td and td.get("s3_key"):
+                        skey = td["s3_key"]
+                if skey and s3_service.object_exists(skey):
+                    s3_service.download_model(skey, glb_path)
+            except Exception as e:
+                print(f"[USDZ] Failed to download GLB from S3 for USDZ conversion: {e}")
+
+        if not os.path.exists(glb_path):
+            return jsonify({
+                "error": "Source 3D model not found for USDZ generation",
+                "code": "MODEL_FILE_NOT_FOUND",
+            }), 404
+
+        # Convert GLB to USDZ via headless Blender
+        try:
+            import subprocess
+            py_code = (
+                "import bpy; "
+                "bpy.ops.object.select_all(action='SELECT'); "
+                "bpy.ops.object.delete(use_global=False); "
+                f"bpy.ops.import_scene.gltf(filepath=r'{glb_path}'); "
+                f"bpy.ops.wm.usd_export(filepath=r'{usdz_path}')"
+            )
+            blender_bin = os.environ.get("BLENDER_PATH") or "blender"
+            cmd = [blender_bin, "-b", "--python-expr", py_code]
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if res.returncode == 0 and os.path.exists(usdz_path):
+                resp = send_from_directory(
+                    OUTPUT_FOLDER, usdz_filename, as_attachment=False, mimetype="model/vnd.usdz+zip"
+                )
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+                return resp
+            else:
+                print(f"[USDZ] Blender USDZ export exited with code {res.returncode}: {res.stderr}")
+                return jsonify({
+                    "error": "USDZ conversion failed",
+                    "code": "USDZ_CONVERSION_FAILED",
+                }), 500
+        except Exception as conv_err:
+            print(f"[USDZ] Error invoking Blender for USDZ: {conv_err}")
+            return jsonify({
+                "error": "USDZ generation unavailable",
+                "code": "USDZ_UNAVAILABLE",
+            }), 500
+

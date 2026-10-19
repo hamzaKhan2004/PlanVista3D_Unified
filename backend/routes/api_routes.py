@@ -14,4 +14,11 @@ api_bp.add_url_rule("/project/<task_id>", view_func=ModelController.save_project
 api_bp.add_url_rule("/project/<task_id>", view_func=ModelController.delete_project, methods=["DELETE"])
 api_bp.add_url_rule("/images/store-render", view_func=ModelController.store_rendered_image, methods=["POST"])
 api_bp.add_url_rule("/images/auth", view_func=ModelController.get_imagekit_auth, methods=["GET"])
+api_bp.add_url_rule("/share/model/<task_id>", view_func=ModelController.create_model_share, methods=["POST"])
+api_bp.add_url_rule("/share/model/<task_id>/revoke", view_func=ModelController.revoke_model_share, methods=["POST"])
+api_bp.add_url_rule("/share/model/status/<task_id>", view_func=ModelController.get_model_share_status, methods=["GET"])
+api_bp.add_url_rule("/share/model/<share_token>", view_func=ModelController.get_shared_model, methods=["GET"])
+api_bp.add_url_rule("/share/model/<share_token>/download", view_func=ModelController.download_shared_model, methods=["GET"])
+api_bp.add_url_rule("/share/model/<share_token>/usdz", view_func=ModelController.download_shared_usdz, methods=["GET"])
 api_bp.add_url_rule("/health", view_func=ModelController.health_check, methods=["GET"])
+

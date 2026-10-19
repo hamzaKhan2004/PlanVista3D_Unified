@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Layers,
   SlidersHorizontal,
+  QrCode,
 } from "lucide-react";
 import Button from "../ui/Button";
 import { CAMERA_PRESETS, TRANSFORM_MODES } from "../../domain/cad/cadTypes";
@@ -52,6 +53,7 @@ const CadToolbar = ({
   onToggleLeftPanel,
   isRightPanelOpen = true,
   onToggleRightPanel,
+  onOpenArScanner,
 }) => {
   return (
     <div className="bg-[#fdfbf7] dark:bg-[#1d1b19] border-b border-[#eae4dc] dark:border-[#39342f] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3 shadow-xs overflow-x-auto overflow-y-hidden scrollbar-none">
@@ -314,6 +316,19 @@ const CadToolbar = ({
           <Download className="w-3.5 h-3.5" />
           <span>Export GLB</span>
         </Button>
+
+        {onOpenArScanner && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenArScanner}
+            className="text-xs font-medium flex items-center gap-1.5 dark:border-[#39342f] text-orange-600 dark:text-[#ff9d54] hover:bg-orange-50 dark:hover:bg-[#ff7417]/15"
+            title="Launch mobile AR Scanner & QR Code"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">AR View</span>
+          </Button>
+        )}
 
         {onDeleteProject && (
           <button
