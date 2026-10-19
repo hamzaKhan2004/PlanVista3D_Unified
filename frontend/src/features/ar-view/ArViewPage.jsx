@@ -21,6 +21,62 @@ import Button from "../../presentation/ui/Button";
 import ArScannerModal from "../../presentation/cad/ArScannerModal";
 import { getSharedModel } from "../../lib/api/shareApi";
 import { getSecureModelUrl } from "../../lib/api/modelApi";
+import { getPublicFrontendOrigin } from "../../infrastructure/config/constants";
+
+/**
+ * Normalizes a model or USDZ asset URL to ensure it can be safely loaded
+ * by Google <model-viewer> and native AR viewers (Scene Viewer / Quick Look).
+ * Prevents browser Mixed Content blocking and port-5000 CORS issues in local development.
+ */
+const resolveAbsoluteModelUrl = (rawUrl, origin) => {
+  if (!rawUrl || typeof rawUrl !== "string") return null;
+  const cleanUrl = rawUrl.trim();
+  if (!cleanUrl) return null;
+
+  // 1. Relative path: prefix with canonical origin
+  if (!cleanUrl.startsWith("http://") && !cleanUrl.startsWith("https://")) {
+    return `${origin}${cleanUrl.startsWith("/") ? "" : "/"}${cleanUrl}`;
+  }
+
+  // 2. If current window is HTTPS and rawUrl is HTTP, prevent Mixed Content blocking
+  if (
+    typeof window !== "undefined" &&
+    window.location.protocol === "https:" &&
+    cleanUrl.startsWith("http://")
+  ) {
+    try {
+      const parsed = new URL(cleanUrl);
+      if (
+        parsed.hostname === window.location.hostname ||
+        parsed.hostname.includes("onrender.com") ||
+        parsed.hostname === "localhost" ||
+        parsed.hostname === "127.0.0.1" ||
+        parsed.hostname === "0.0.0.0"
+      ) {
+        return `${origin}${parsed.pathname}${parsed.search}`;
+      }
+      return cleanUrl.replace(/^http:\/\//i, "https://");
+    } catch {
+      return cleanUrl.replace(/^http:\/\//i, "https://");
+    }
+  }
+
+  // 3. Localhost development port redirection: if backend returned localhost:5000,
+  // route through current frontend origin (e.g. localhost:5173 with Vite proxy)
+  if (
+    typeof window !== "undefined" &&
+    (cleanUrl.includes("localhost:5000") || cleanUrl.includes("127.0.0.1:5000")) &&
+    window.location.port !== "5000"
+  ) {
+    try {
+      const parsed = new URL(cleanUrl);
+      return `${origin}${parsed.pathname}${parsed.search}`;
+    } catch {}
+  }
+
+  // 4. Default: return verified URL as-is (e.g. direct Amazon S3 presigned URL)
+  return cleanUrl;
+};
 
 const ArViewPage = () => {
   const { identifier: routeIdentifier } = useParams();
@@ -65,18 +121,8 @@ const ArViewPage = () => {
           const res = await getSharedModel(identifier);
           if (!isMounted) return;
           if (res.success && res.model_url) {
-            const rawUrl = res.model_url;
-            const absoluteModelUrl =
-              rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-                ? rawUrl
-                : `${origin}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
-
-            const rawUsdz = res.usdz_url;
-            const absoluteUsdzUrl = rawUsdz
-              ? rawUsdz.startsWith("http://") || rawUsdz.startsWith("https://")
-                ? rawUsdz
-                : `${origin}${rawUsdz.startsWith("/") ? "" : "/"}${rawUsdz}`
-              : null;
+            const absoluteModelUrl = resolveAbsoluteModelUrl(res.model_url, origin);
+            const absoluteUsdzUrl = resolveAbsoluteModelUrl(res.usdz_url, origin);
 
             setModelData({
               ...res,
@@ -103,6 +149,8 @@ const ArViewPage = () => {
             setErrorCode("MODEL_NOT_FOUND");
             setIsLoading(false);
             return;
+          } else {
+            console.warn("Public share token resolution attempt:", shareErr);
           }
         }
 
@@ -111,11 +159,7 @@ const ArViewPage = () => {
           const directRes = await getSecureModelUrl(identifier);
           if (!isMounted) return;
           if (directRes && directRes.url) {
-            const rawUrl = directRes.url;
-            const absoluteModelUrl =
-              rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
-                ? rawUrl
-                : `${origin}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+            const absoluteModelUrl = resolveAbsoluteModelUrl(directRes.url, origin);
 
             setModelData({
               project_name: directRes.filename || "3D CAD Model",

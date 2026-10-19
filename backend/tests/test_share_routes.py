@@ -166,6 +166,144 @@ class TestShareRoutes(unittest.TestCase):
                 except Exception:
                     pass
 
+    @patch("backend.controllers.model_controller.get_authenticated_user")
+    @patch("backend.controllers.model_controller.project_repository")
+    @patch("backend.controllers.model_controller.mongo_manager")
+    def test_missing_model_file_returns_404_code(self, mock_mongo, mock_repo, mock_auth):
+        """
+        Verifies that an active share token referencing a nonexistent model
+        returns 404 with MODEL_FILE_NOT_FOUND rather than crashing.
+        """
+        mock_auth.return_value = {"user_id": self.owner_id, "username": "owner"}
+        mock_mongo.is_configured.return_value = True
+        mock_repo.get_project_owner.return_value = self.owner_id
+        mock_repo.get_project.return_value = {"name": "Test CAD Model", "project_id": self.task_id}
+
+        # Create share
+        resp = self.client.post(f"/api/share/model/{self.task_id}")
+        token = resp.get_json()["share_token"]
+
+        # Delete local file and remove s3_key from task
+        if os.path.exists(self.model_path):
+            os.remove(self.model_path)
+        task_repository.set(self.task_id, {
+            "status": "completed",
+            "progress": 100,
+            "owner_id": self.owner_id,
+            "model_file": "nonexistent_model.glb",
+        })
+
+        # Query public share
+        public_resp = self.client.get(f"/api/share/model/{token}")
+        self.assertEqual(public_resp.status_code, 404)
+        self.assertEqual(public_resp.get_json()["code"], "MODEL_FILE_NOT_FOUND")
+
+        # Query download endpoint
+        dl_resp = self.client.get(f"/api/share/model/{token}/download")
+        self.assertEqual(dl_resp.status_code, 404)
+        self.assertEqual(dl_resp.get_json()["code"], "MODEL_FILE_NOT_FOUND")
+
+    @patch("backend.controllers.model_controller.get_authenticated_user")
+    @patch("backend.controllers.model_controller.project_repository")
+    @patch("backend.controllers.model_controller.mongo_manager")
+    def test_cors_options_preflight_on_share_endpoints(self, mock_mongo, mock_repo, mock_auth):
+        """
+        Verifies OPTIONS preflight requests on public share and download endpoints
+        return 200 with permissive CORS headers for Scene Viewer and WebXR.
+        """
+        mock_auth.return_value = {"user_id": self.owner_id, "username": "owner"}
+        mock_mongo.is_configured.return_value = True
+        mock_repo.get_project_owner.return_value = self.owner_id
+
+        resp = self.client.post(f"/api/share/model/{self.task_id}")
+        token = resp.get_json()["share_token"]
+
+        # Test OPTIONS on /api/share/model/<token>
+        opt_share = self.client.open(f"/api/share/model/{token}", method="OPTIONS", headers={"Origin": "https://planvista3d.onrender.com"})
+        self.assertEqual(opt_share.status_code, 200)
+        self.assertIn("Access-Control-Allow-Origin", opt_share.headers)
+
+        # Test OPTIONS on /api/share/model/<token>/download
+        opt_dl = self.client.open(f"/api/share/model/{token}/download", method="OPTIONS", headers={"Origin": "https://planvista3d.onrender.com"})
+        self.assertEqual(opt_dl.status_code, 200)
+        self.assertIn("Access-Control-Allow-Origin", opt_dl.headers)
+        self.assertIn("GET", opt_dl.headers.get("Allow", "") + opt_dl.headers.get("Access-Control-Allow-Methods", ""))
+
+        # Test OPTIONS on /api/share/model/<token>/usdz
+        opt_usdz = self.client.open(f"/api/share/model/{token}/usdz", method="OPTIONS", headers={"Origin": "https://planvista3d.onrender.com"})
+        self.assertEqual(opt_usdz.status_code, 200)
+        self.assertIn("Access-Control-Allow-Origin", opt_usdz.headers)
+
+    @patch("backend.controllers.model_controller.s3_service")
+    @patch("backend.controllers.model_controller.get_authenticated_user")
+    @patch("backend.controllers.model_controller.project_repository")
+    @patch("backend.controllers.model_controller.mongo_manager")
+    def test_s3_shared_model_and_redirect_cors(self, mock_mongo, mock_repo, mock_auth, mock_s3):
+        """
+        Verifies that S3-backed shared models return presigned URLs in JSON
+        and attach CORS headers to the 302 redirect on the streaming route.
+        """
+        mock_auth.return_value = {"user_id": self.owner_id, "username": "owner"}
+        mock_mongo.is_configured.return_value = True
+        mock_repo.get_project_owner.return_value = self.owner_id
+        mock_repo.get_project.return_value = {
+            "name": "S3 CAD Model",
+            "project_id": self.task_id,
+            "model_ref": {"storage_provider": "s3", "key": "users/user_owner/projects/proj/model.glb"},
+        }
+
+        mock_s3.is_configured.return_value = True
+        mock_s3.object_exists.return_value = True
+        mock_s3.generate_presigned_url.return_value = "https://my-bucket.s3.amazonaws.com/model.glb?sig=123"
+
+        # Create share
+        resp = self.client.post(f"/api/share/model/{self.task_id}")
+        token = resp.get_json()["share_token"]
+
+        # Remove local file so S3 is exercised
+        if os.path.exists(self.model_path):
+            os.remove(self.model_path)
+
+        # 1. get_shared_model should return presigned URL directly
+        share_resp = self.client.get(f"/api/share/model/{token}")
+        self.assertEqual(share_resp.status_code, 200)
+        data = share_resp.get_json()
+        self.assertEqual(data["storage_provider"], "s3")
+        self.assertTrue(data["model_url"].startswith("https://my-bucket.s3.amazonaws.com"))
+
+        # 2. download_shared_model should redirect (302) with CORS headers
+        dl_resp = self.client.get(f"/api/share/model/{token}/download")
+        self.assertEqual(dl_resp.status_code, 302)
+        self.assertEqual(dl_resp.headers.get("Location"), "https://my-bucket.s3.amazonaws.com/model.glb?sig=123")
+        self.assertEqual(dl_resp.headers.get("Access-Control-Allow-Origin"), "*")
+
+    @patch("backend.controllers.model_controller.get_authenticated_user")
+    @patch("backend.controllers.model_controller.project_repository")
+    @patch("backend.controllers.model_controller.mongo_manager")
+    def test_shared_model_respects_x_forwarded_proto_and_host(self, mock_mongo, mock_repo, mock_auth):
+        """
+        Verifies that behind an HTTPS reverse proxy (like Render),
+        download and USDZ URLs use https:// and the forwarded host.
+        """
+        mock_auth.return_value = {"user_id": self.owner_id, "username": "owner"}
+        mock_mongo.is_configured.return_value = True
+        mock_repo.get_project_owner.return_value = self.owner_id
+        mock_repo.get_project.return_value = {"name": "Test CAD Model", "project_id": self.task_id}
+
+        resp = self.client.post(f"/api/share/model/{self.task_id}")
+        token = resp.get_json()["share_token"]
+
+        # Call with Render reverse proxy headers
+        headers = {
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "planvista3d.onrender.com",
+        }
+        res = self.client.get(f"/api/share/model/{token}", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data["model_url"].startswith("https://planvista3d.onrender.com/api/share/model/"))
+        self.assertTrue(data["usdz_url"].startswith("https://planvista3d.onrender.com/api/share/model/"))
+
 
 if __name__ == "__main__":
     unittest.main()

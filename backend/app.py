@@ -41,7 +41,7 @@ def create_app():
     CORS(
         application,
         origins=ALLOWED_ORIGINS,
-        allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+        allow_headers=["Authorization", "Content-Type", "X-Requested-With", "Range"],
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     )
     application.register_blueprint(api_bp)
