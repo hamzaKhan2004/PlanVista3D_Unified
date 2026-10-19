@@ -2,7 +2,7 @@ import time
 import os
 import uuid
 import json
-from flask import request, jsonify, send_from_directory, Response, redirect
+from flask import request, jsonify, send_from_directory, Response, redirect, make_response
 from werkzeug.utils import secure_filename
 from backend.config.config import UPLOAD_FOLDER, OUTPUT_FOLDER, resolve_blender_path, is_production_environment
 from backend.schemas.validation import allowed_file, parse_upload_params
@@ -1203,6 +1203,13 @@ class ModelController:
         Resolves the stable share token to a short-lived presigned URL or streaming path.
         Does NOT reveal user identities, private storage paths, or other projects.
         """
+        if request.method == "OPTIONS":
+            resp = make_response("", 200)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Range, Authorization, X-Requested-With"
+            return resp
+
         share = share_repository.get_share(share_token)
         if not share:
             share = share_repository.get_share_by_project(share_token)
@@ -1225,7 +1232,11 @@ class ModelController:
         proj_name = "PlanVista 3D CAD Model"
 
         # Construct absolute URLs for local streaming & USDZ
-        base_url = request.host_url.rstrip("/") if request.host_url else ""
+        proto = request.headers.get("X-Forwarded-Proto") or (
+            "https" if request.is_secure else "http"
+        )
+        host = request.headers.get("X-Forwarded-Host") or request.host
+        base_url = f"{proto}://{host}" if host else ""
         local_download_url = f"{base_url}/api/share/model/{actual_share_token}/download" if base_url else f"/api/share/model/{actual_share_token}/download"
         usdz_download_url = f"{base_url}/api/share/model/{actual_share_token}/usdz" if base_url else f"/api/share/model/{actual_share_token}/usdz"
 
@@ -1341,6 +1352,13 @@ class ModelController:
         Directs to S3 presigned URL or streams local GLB.
         Attaches permissive CORS headers for Scene Viewer and WebXR requests.
         """
+        if request.method == "OPTIONS":
+            resp = make_response("", 200)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Range, Authorization, X-Requested-With"
+            return resp
+
         share = share_repository.get_share(share_token)
         if not share or not share.get("is_active"):
             return jsonify({
@@ -1372,6 +1390,11 @@ class ModelController:
                         proj = project_repository.get_project_unscoped(task_id)
                     if proj and proj.get("model_ref"):
                         skey = proj["model_ref"].get("key")
+                    if not skey:
+                        assets = project_repository.get_assets_by_project(task_id, owner_id=owner_id)
+                        model_assets = [a for a in assets if a.get("asset_type") == "3d_model" and a.get("storage_key")]
+                        if model_assets:
+                            skey = model_assets[-1]["storage_key"]
                 except Exception:
                     pass
 
@@ -1382,7 +1405,10 @@ class ModelController:
 
             if skey and s3_service.object_exists(skey):
                 presigned = s3_service.generate_presigned_url(skey, expiry_seconds=900)
-                return redirect(presigned, code=302)
+                resp = redirect(presigned, code=302)
+                resp.headers["Access-Control-Allow-Origin"] = "*"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+                return resp
 
         return jsonify({
             "error": "3D model file not found",
@@ -1395,6 +1421,13 @@ class ModelController:
         Public streaming endpoint for iOS AR Quick Look (.usdz).
         Directs to USDZ file if available, or dynamically converts GLB to USDZ using Blender.
         """
+        if request.method == "OPTIONS":
+            resp = make_response("", 200)
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+            resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Range, Authorization, X-Requested-With"
+            return resp
+
         share = share_repository.get_share(share_token)
         if not share or not share.get("is_active"):
             return jsonify({

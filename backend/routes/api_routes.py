@@ -17,8 +17,8 @@ api_bp.add_url_rule("/images/auth", view_func=ModelController.get_imagekit_auth,
 api_bp.add_url_rule("/share/model/<task_id>", view_func=ModelController.create_model_share, methods=["POST"])
 api_bp.add_url_rule("/share/model/<task_id>/revoke", view_func=ModelController.revoke_model_share, methods=["POST"])
 api_bp.add_url_rule("/share/model/status/<task_id>", view_func=ModelController.get_model_share_status, methods=["GET"])
-api_bp.add_url_rule("/share/model/<share_token>", view_func=ModelController.get_shared_model, methods=["GET"])
-api_bp.add_url_rule("/share/model/<share_token>/download", view_func=ModelController.download_shared_model, methods=["GET"])
-api_bp.add_url_rule("/share/model/<share_token>/usdz", view_func=ModelController.download_shared_usdz, methods=["GET"])
+api_bp.add_url_rule("/share/model/<share_token>", view_func=ModelController.get_shared_model, methods=["GET", "OPTIONS"])
+api_bp.add_url_rule("/share/model/<share_token>/download", view_func=ModelController.download_shared_model, methods=["GET", "OPTIONS"])
+api_bp.add_url_rule("/share/model/<share_token>/usdz", view_func=ModelController.download_shared_usdz, methods=["GET", "OPTIONS"])
 api_bp.add_url_rule("/health", view_func=ModelController.health_check, methods=["GET"])
 
