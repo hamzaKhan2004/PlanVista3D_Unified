@@ -2,10 +2,12 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, ArrowLeft, Layers, ShieldCheck, Check } from "lucide-react";
 import UploadFloorPlan from "./UploadFloorPlan";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import { createProject } from "../../lib/puter/puter.action";
 
 const GenerateImagePage = () => {
   const navigate = useNavigate();
+  const { userId } = useAuth();
 
   const handleUploadComplete = async (base64Image) => {
     try {
@@ -17,6 +19,7 @@ const GenerateImagePage = () => {
         name,
         sourceImage: base64Image,
         renderedImage: undefined,
+        ownerId: userId || undefined,
         timestamp: Date.now(),
       };
 

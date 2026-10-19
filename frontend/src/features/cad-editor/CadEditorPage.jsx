@@ -16,12 +16,14 @@ import {
   SplitSquareVertical,
   ChevronLeft,
   ChevronRight,
+  Box,
 } from "lucide-react";
 import CadToolbar from "../../presentation/cad/CadToolbar";
 import CadPropertiesPanel from "../../presentation/cad/CadPropertiesPanel";
 import SceneHierarchyPanel from "../../presentation/cad/SceneHierarchyPanel";
 import DimensionOverlay from "../../presentation/cad/DimensionOverlay";
 import SourceBlueprintPanel from "../../presentation/cad/SourceBlueprintPanel";
+import ArScannerModal from "../../presentation/cad/ArScannerModal";
 import CadViewport from "./CadViewport";
 import Button from "../../presentation/ui/Button";
 import Modal from "../../presentation/ui/Modal";
@@ -76,13 +78,30 @@ const CadEditorPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showArScannerModal, setShowArScannerModal] = useState(false);
   const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [deleteProjectError, setDeleteProjectError] = useState("");
   const [showCompareOverlay, setShowCompareOverlay] = useState(false);
 
-  // Collapsible side panels state (Req 2)
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(true);
-  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  // Collapsible side panels state: default closed on mobile (<1024px) for full 3D viewport, open on desktop (>=1024px)
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState(
+    () => (typeof window !== "undefined" ? window.innerWidth >= 1024 : true)
+  );
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(
+    () => (typeof window !== "undefined" ? window.innerWidth >= 1024 : true)
+  );
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 1024
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Object deletion confirmation state (Req 3)
   const [objectToDelete, setObjectToDelete] = useState(null);
@@ -1194,7 +1213,7 @@ const CadEditorPage = () => {
   const selectedData = getSelectedObjectData();
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fdfbf7] dark:bg-[#141311] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-[#fdfbf7] dark:bg-[#141311] overflow-hidden pb-14 lg:pb-0 relative">
       {/* Top CAD Studio Bar */}
       <CadToolbar
         transformMode={transformMode}
@@ -1235,6 +1254,7 @@ const CadEditorPage = () => {
         onSaveProject={handleSaveProject}
         onExportGlb={handleExportGlb}
         onDeleteProject={() => setShowDeleteModal(true)}
+        onOpenArScanner={() => setShowArScannerModal(true)}
         isLeftPanelOpen={isLeftPanelOpen}
         onToggleLeftPanel={() => setIsLeftPanelOpen((prev) => !prev)}
         isRightPanelOpen={isRightPanelOpen}
@@ -1259,14 +1279,14 @@ const CadEditorPage = () => {
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left: Scene Hierarchy Tree Panel (Responsive slide-over on small screens, static column on md+) */}
+        {/* Left: Scene Hierarchy Tree Panel (Responsive slide-over drawer on <lg, static column on lg+) */}
         {isLeftPanelOpen && (
           <>
             <div
-              className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
               onClick={() => setIsLeftPanelOpen(false)}
             />
-            <div className="fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] shadow-2xl md:static md:w-64 md:shadow-none md:z-auto border-r border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform">
+            <div className="fixed inset-y-0 left-0 z-40 w-80 max-w-[85vw] shadow-2xl lg:static lg:w-64 lg:shadow-none lg:z-auto border-r border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform">
               <SceneHierarchyPanel
                 dynamicObjects={dynamicObjects}
                 selectedObjectId={selectedObject?.id}
@@ -1284,7 +1304,7 @@ const CadEditorPage = () => {
 
         {/* Center: 3D Viewport */}
         <div className="flex-1 min-w-0 h-full relative">
-          {/* Persistent Expand Left Panel Button (when collapsed) */}
+          {/* Persistent Expand Left Panel Button (when collapsed on desktop) */}
           {!isLeftPanelOpen && (
             <button
               type="button"
@@ -1294,13 +1314,13 @@ const CadEditorPage = () => {
               }}
               title="Expand Scene Hierarchy (Left Panel)"
               aria-label="Expand Scene Hierarchy"
-              className="absolute top-4 left-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center pointer-events-auto"
+              className="hidden lg:flex absolute top-4 left-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer items-center justify-center pointer-events-auto"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
 
-          {/* Persistent Expand Right Panel Button (when collapsed) */}
+          {/* Persistent Expand Right Panel Button (when collapsed on desktop) */}
           {!isRightPanelOpen && (
             <button
               type="button"
@@ -1310,7 +1330,7 @@ const CadEditorPage = () => {
               }}
               title="Expand Property Inspector (Right Panel)"
               aria-label="Expand Property Inspector"
-              className="absolute top-4 right-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer flex items-center justify-center pointer-events-auto"
+              className="hidden lg:flex absolute top-4 right-4 z-30 p-2 rounded-xl bg-white/95 dark:bg-[#1d1b19]/95 text-zinc-700 dark:text-[#f5f0e8] border border-[#eae4dc] dark:border-[#39342f] shadow-md backdrop-blur-md hover:bg-orange-50 dark:hover:bg-[#2b2a27] hover:text-orange-600 dark:hover:text-[#ff7417] transition-all cursor-pointer items-center justify-center pointer-events-auto"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -1412,7 +1432,7 @@ const CadEditorPage = () => {
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="px-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#746e65]">
+                    <div className="px-1 flex items-center justify-between text-[11px] text-zinc-500 dark:text-[#b4ada3]">
                       <span className="truncate max-w-[150px]">{modelProject.fileName || "Blueprint"}</span>
                       <button
                         type="button"
@@ -1429,11 +1449,11 @@ const CadEditorPage = () => {
           )}
         </div>
 
-        {/* Right: Property Inspector Panel (Responsive slide-over on small screens, static column on lg+) */}
+        {/* Right: Property Inspector Panel (Responsive slide-over drawer on <lg, static column on lg+) */}
         {isRightPanelOpen && (
           <>
             <div
-              className="lg:hidden fixed inset-0 bg-black/40 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
+              className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-xs z-30 transition-opacity cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
                 setIsRightPanelOpen(false);
@@ -1441,7 +1461,7 @@ const CadEditorPage = () => {
             />
             <div
               onClick={(e) => e.stopPropagation()}
-              className="fixed inset-y-0 right-0 z-40 w-80 max-w-[85vw] shadow-2xl lg:static lg:w-80 lg:shadow-none lg:z-auto border-l border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform"
+              className="fixed inset-y-0 right-0 z-40 w-84 max-w-[88vw] shadow-2xl lg:static lg:w-80 lg:shadow-none lg:z-auto border-l border-[#eae4dc] dark:border-[#39342f] h-full shrink-0 bg-[#fdfbf7] dark:bg-[#1d1b19] transition-transform"
             >
               <CadPropertiesPanel
                 selectedObject={selectedObject}
@@ -1479,6 +1499,87 @@ const CadEditorPage = () => {
             </div>
           </>
         )}
+      </div>
+
+      {/* Mobile Floating Selection Pill */}
+      {selectedObject && !isLeftPanelOpen && !isRightPanelOpen && (
+        <div className="lg:hidden absolute bottom-16 inset-x-4 z-20 flex justify-center pointer-events-none">
+          <button
+            type="button"
+            onClick={() => setIsRightPanelOpen(true)}
+            className="pointer-events-auto max-w-sm px-4 py-2 bg-white/95 dark:bg-[#211f1d]/95 backdrop-blur-md rounded-2xl border border-orange-200 dark:border-orange-500/30 shadow-lg flex items-center justify-between gap-3 text-xs text-zinc-800 dark:text-[#f5f0e8] hover:border-orange-400 transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+              <span className="truncate font-semibold">
+                {selectedObject.name || selectedObject.type || "Selected Element"}
+              </span>
+            </div>
+            <span className="shrink-0 text-orange-600 dark:text-[#ff7417] font-bold text-[11px]">
+              Properties →
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Mobile CAD Studio Bottom Navigation Bar */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#1d1b19]/95 backdrop-blur-md border-t border-[#eae4dc] dark:border-[#39342f] px-3 py-1.5 flex items-center justify-around pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-lg">
+        <button
+          type="button"
+          onClick={() => {
+            setIsLeftPanelOpen(false);
+            setIsRightPanelOpen(false);
+          }}
+          className={`flex-1 py-1 px-2 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all cursor-pointer ${
+            !isLeftPanelOpen && !isRightPanelOpen
+              ? "text-orange-600 dark:text-[#ff7417] font-semibold bg-orange-50 dark:bg-[#ff7417]/10"
+              : "text-zinc-500 dark:text-[#b4ada3] hover:text-zinc-800 dark:hover:text-[#f5f0e8]"
+          }`}
+          aria-label="3D Viewport mode"
+        >
+          <Box className="w-4 h-4" />
+          <span className="text-[11px]">Viewport</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsLeftPanelOpen((prev) => !prev);
+            setIsRightPanelOpen(false);
+          }}
+          className={`flex-1 py-1 px-2 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all cursor-pointer relative ${
+            isLeftPanelOpen
+              ? "text-orange-600 dark:text-[#ff7417] font-semibold bg-orange-50 dark:bg-[#ff7417]/10"
+              : "text-zinc-500 dark:text-[#b4ada3] hover:text-zinc-800 dark:hover:text-[#f5f0e8]"
+          }`}
+          aria-label="Open Elements Hierarchy"
+        >
+          <Layers className="w-4 h-4" />
+          <span className="text-[11px]">Elements</span>
+          {Object.values(dynamicObjects).flat().length > 0 && (
+            <span className="absolute top-1 right-1/4 w-2 h-2 rounded-full bg-orange-500" />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsRightPanelOpen((prev) => !prev);
+            setIsLeftPanelOpen(false);
+          }}
+          className={`flex-1 py-1 px-2 flex flex-col items-center justify-center gap-0.5 rounded-xl transition-all cursor-pointer relative ${
+            isRightPanelOpen
+              ? "text-orange-600 dark:text-[#ff7417] font-semibold bg-orange-50 dark:bg-[#ff7417]/10"
+              : "text-zinc-500 dark:text-[#b4ada3] hover:text-zinc-800 dark:hover:text-[#f5f0e8]"
+          }`}
+          aria-label="Open Properties Inspector"
+        >
+          <SlidersHorizontal className="w-4 h-4" />
+          <span className="text-[11px]">Properties</span>
+          {selectedObject && (
+            <span className="absolute top-1 right-1/4 w-2 h-2 rounded-full bg-emerald-500" />
+          )}
+        </button>
       </div>
 
       {/* Delete Architectural Element Confirmation Modal (e.g. FloorSlab or Batch) */}
@@ -1616,6 +1717,19 @@ const CadEditorPage = () => {
           </div>
         </div>
       </Modal>
+
+      {/* AR Scanner & QR Code Modal */}
+      {showArScannerModal && (
+        <ArScannerModal
+          isOpen={showArScannerModal}
+          onClose={() => setShowArScannerModal(false)}
+          project={{
+            taskId: activeTaskId,
+            id: activeTaskId,
+            name: modelProject?.name || `Model ${activeTaskId?.slice(0, 8) || ""}`,
+          }}
+        />
+      )}
     </div>
   );
 };

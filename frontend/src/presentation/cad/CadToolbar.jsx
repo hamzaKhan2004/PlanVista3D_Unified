@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Layers,
   SlidersHorizontal,
+  QrCode,
 } from "lucide-react";
 import Button from "../ui/Button";
 import { CAMERA_PRESETS, TRANSFORM_MODES } from "../../domain/cad/cadTypes";
@@ -52,6 +53,7 @@ const CadToolbar = ({
   onToggleLeftPanel,
   isRightPanelOpen = true,
   onToggleRightPanel,
+  onOpenArScanner,
 }) => {
   return (
     <div className="bg-[#fdfbf7] dark:bg-[#1d1b19] border-b border-[#eae4dc] dark:border-[#39342f] px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3 shadow-xs overflow-x-auto overflow-y-hidden scrollbar-none">
@@ -195,7 +197,7 @@ const CadToolbar = ({
           onClick={onToggleGrid}
           title="Toggle Grid"
           className={`p-1.5 rounded-lg text-xs transition-colors ${
-            showGrid ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+            showGrid ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <GridIcon className="w-4 h-4" />
@@ -204,7 +206,7 @@ const CadToolbar = ({
           onClick={onToggleWireframe}
           title="Toggle Wireframe Mode"
           className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-            showWireframe ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+            showWireframe ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15" : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <Box className="w-4 h-4" />
@@ -216,7 +218,7 @@ const CadToolbar = ({
           className={`px-2 py-1 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors cursor-pointer ${
             showBlueprint
               ? "text-orange-600 dark:text-[#ff7417] bg-orange-50 dark:bg-[#ff7417]/15 font-semibold"
-              : "text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
+              : "text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#e6e2de]"
           }`}
         >
           <ImageIcon className="w-3.5 h-3.5" />
@@ -225,7 +227,7 @@ const CadToolbar = ({
 
         {showBlueprint && onChangeBlueprintOpacity && (
           <div className="hidden xl:flex items-center gap-1.5 pl-1">
-            <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+            <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">
               {Math.round(blueprintOpacity * 100)}%
             </span>
             <input
@@ -314,6 +316,19 @@ const CadToolbar = ({
           <Download className="w-3.5 h-3.5" />
           <span>Export GLB</span>
         </Button>
+
+        {onOpenArScanner && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenArScanner}
+            className="text-xs font-medium flex items-center gap-1.5 dark:border-[#39342f] text-orange-600 dark:text-[#ff9d54] hover:bg-orange-50 dark:hover:bg-[#ff7417]/15"
+            title="Launch mobile AR Scanner & QR Code"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">AR View</span>
+          </Button>
+        )}
 
         {onDeleteProject && (
           <button

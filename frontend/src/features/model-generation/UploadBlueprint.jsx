@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UploadCloud, CheckCircle2, Box, Layers, AlertCircle, ArrowRight, Sparkles } from "lucide-react";
 import Button from "../../presentation/ui/Button";
+import { useAuth } from "../../presentation/layout/AppLayout";
 import { uploadBlueprint, extractVectorGeometry, saveLocalModelProject } from "../../lib/api/modelApi";
 import VectorGeometryPreviewModal from "../../presentation/cad/VectorGeometryPreviewModal";
 
 const UploadBlueprint = () => {
+  const { userId } = useAuth();
   const [file, setFile] = useState(null);
   const [floors, setFloors] = useState("3");
   const [wallHeight, setWallHeight] = useState("3.2");
@@ -86,26 +88,29 @@ const UploadBlueprint = () => {
         vectorData,
       });
 
-      saveLocalModelProject({
-        id: res.task_id,
-        taskId: res.task_id,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        fileName: file.name,
-        type: "image",
-        pipeline: "vector_assisted",
-        floors: 1,
-        wallHeight: Number(calHeight),
-        wallThickness: Number(calThick),
-        targetSize: Number(calScale),
-        timestamp: Date.now(),
-        sourceThumbnail,
-        sourceDownloadUrl: `/api/source/${res.task_id}`,
-        status: "processing",
-        analysis: {
+      saveLocalModelProject(
+        {
+          id: res.task_id,
+          taskId: res.task_id,
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          fileName: file.name,
+          type: "image",
           pipeline: "vector_assisted",
-          walls_detected: vectorData?.wall_count || vectorData?.line_segments?.length || 0,
+          floors: 1,
+          wallHeight: Number(calHeight),
+          wallThickness: Number(calThick),
+          targetSize: Number(calScale),
+          timestamp: Date.now(),
+          sourceThumbnail,
+          sourceDownloadUrl: `/api/source/${res.task_id}`,
+          status: "processing",
+          analysis: {
+            pipeline: "vector_assisted",
+            walls_detected: vectorData?.wall_count || vectorData?.line_segments?.length || 0,
+          },
         },
-      });
+        userId
+      );
 
       setIsVectorModalOpen(false);
       navigate(`/model-viewer/${res.task_id}`);
@@ -169,20 +174,23 @@ const UploadBlueprint = () => {
       });
 
       // Save to local model projects registry
-      saveLocalModelProject({
-        id: res.task_id,
-        taskId: res.task_id,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        fileName: file.name,
-        type: isDXF ? "dxf" : "image",
-        floors: isDXF ? Number(floors) : 1,
-        wallHeight: Number(wallHeight),
-        wallThickness: Number(wallThickness),
-        timestamp: Date.now(),
-        sourceThumbnail: thumbnail,
-        sourceDownloadUrl: `/api/source/${res.task_id}`,
-        status: "processing",
-      });
+      saveLocalModelProject(
+        {
+          id: res.task_id,
+          taskId: res.task_id,
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          fileName: file.name,
+          type: isDXF ? "dxf" : "image",
+          floors: isDXF ? Number(floors) : 1,
+          wallHeight: Number(wallHeight),
+          wallThickness: Number(wallThickness),
+          timestamp: Date.now(),
+          sourceThumbnail: thumbnail,
+          sourceDownloadUrl: `/api/source/${res.task_id}`,
+          status: "processing",
+        },
+        userId
+      );
 
       navigate(`/model-viewer/${res.task_id}`);
     } catch (err) {

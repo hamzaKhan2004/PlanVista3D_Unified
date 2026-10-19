@@ -322,11 +322,13 @@ class TestImageKitApiEndpoints(unittest.TestCase):
         self.assertEqual(resp.status_code, 502)
         self.assertIn("upload failed", resp.get_json()["error"].lower())
 
+    @patch("backend.controllers.model_controller.mongo_manager")
     @patch("backend.controllers.model_controller.imagekit_service")
     @patch("backend.controllers.model_controller.dispatch_generation_task")
-    def test_blueprint_upload_unconfigured_compatibility(self, mock_dispatch, mock_ik):
-        # ImageKit unconfigured: local processing still succeeds!
+    def test_blueprint_upload_unconfigured_compatibility(self, mock_dispatch, mock_ik, mock_mongo):
+        # ImageKit & Mongo unconfigured: local processing still succeeds!
         mock_ik.is_configured.return_value = False
+        mock_mongo.is_configured.return_value = False
 
         data = {
             "file": (io.BytesIO(b"\x89PNG\r\n\x1a\nfakecontent"), "plan.png"),

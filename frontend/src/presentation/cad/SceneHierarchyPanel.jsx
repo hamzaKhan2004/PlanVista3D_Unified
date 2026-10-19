@@ -76,13 +76,13 @@ const SceneHierarchyPanel = ({
       {/* Search & Collapse Header */}
       <div className="p-3 flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65] absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-zinc-400 dark:text-[#b4ada3] absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search scene elements..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] text-xs dark:text-[#f5f0e8] placeholder:text-zinc-400 dark:placeholder:text-[#746e65] focus:outline-orange-500"
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-[#39342f] bg-white dark:bg-[#141311] text-xs dark:text-[#f5f0e8] placeholder:text-zinc-400 dark:placeholder:text-[#8e867b] focus:outline-orange-500"
           />
         </div>
         {onCollapse && (
@@ -91,7 +91,7 @@ const SceneHierarchyPanel = ({
             onClick={onCollapse}
             title="Collapse Scene Outliner (Left Panel)"
             aria-label="Collapse Scene Outliner"
-            className="p-1.5 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer shrink-0"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -135,19 +135,19 @@ const SceneHierarchyPanel = ({
                   className="flex items-center gap-1.5 font-medium text-zinc-800 dark:text-[#f5f0e8] hover:text-orange-600 dark:hover:text-[#ff7417] transition-colors"
                 >
                   {expandedCategories[key] ? (
-                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65]" />
+                    <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#b4ada3]" />
                   ) : (
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400 dark:text-[#746e65]" />
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-400 dark:text-[#b4ada3]" />
                   )}
                   <Icon className="w-3.5 h-3.5 text-zinc-500 dark:text-[#b4ada3]" />
                   <span>{label}</span>
-                  <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">({items.length})</span>
+                  <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">({items.length})</span>
                 </button>
 
                 <button
                   onClick={() => onToggleCategoryVisibility(key)}
                   title={isCategoryVisible ? `Hide all ${label}` : `Show all ${label}`}
-                  className="p-1 text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] rounded transition-colors"
+                  className="p-1 text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8] rounded transition-colors"
                 >
                   {isCategoryVisible ? (
                     <Eye className="w-3.5 h-3.5" />
@@ -161,7 +161,7 @@ const SceneHierarchyPanel = ({
               {expandedCategories[key] && (
                 <div className="divide-y divide-zinc-50 dark:divide-[#2b2a27]">
                   {filteredItems.length === 0 ? (
-                    <div className="p-2 text-center text-zinc-400 dark:text-[#746e65] text-[11px]">
+                    <div className="p-2 text-center text-zinc-400 dark:text-[#b4ada3] text-[11px]">
                       No elements in this category
                     </div>
                   ) : (
@@ -211,7 +211,7 @@ const SceneHierarchyPanel = ({
                               e.stopPropagation();
                               onToggleVisibility(item.id);
                             }}
-                            className="p-0.5 text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8]"
+                            className="p-0.5 text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8]"
                           >
                             {isVisible ? (
                               <Eye className="w-3 h-3" />

@@ -56,17 +56,17 @@ const CadPropertiesPanel = ({
                 }}
                 title="Collapse Property Inspector (Right Panel)"
                 aria-label="Collapse Property Inspector"
-                className="p-1 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-              <span className="text-[11px] font-semibold text-zinc-500 dark:text-[#746e65] uppercase tracking-wider">
+              <span className="text-[11px] font-semibold text-zinc-500 dark:text-[#b4ada3] uppercase tracking-wider">
                 Properties
               </span>
             </div>
           </div>
         )}
-        <div className="p-4 text-center text-zinc-400 dark:text-[#746e65] flex flex-col items-center justify-center bg-zinc-50 dark:bg-[#141311] rounded-2xl border border-dashed border-zinc-200 dark:border-[#39342f]">
+        <div className="p-4 text-center text-zinc-400 dark:text-[#b4ada3] flex flex-col items-center justify-center bg-zinc-50 dark:bg-[#141311] rounded-2xl border border-dashed border-zinc-200 dark:border-[#39342f]">
           <div className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-[#211f1d] flex items-center justify-center mb-2">
             <SlidersHorizontal className="w-5 h-5 text-zinc-400 dark:text-[#a88b7d]" />
           </div>
@@ -87,7 +87,7 @@ const CadPropertiesPanel = ({
                 <h4 className="font-serif font-bold text-xs text-zinc-900 dark:text-[#f5f0e8] leading-none">
                   Blueprint Overlay
                 </h4>
-                <span className="text-[10px] text-zinc-500 dark:text-[#746e65]">
+                <span className="text-[10px] text-zinc-500 dark:text-[#b4ada3]">
                   3D Viewport Floor Reference
                 </span>
               </div>
@@ -99,7 +99,7 @@ const CadPropertiesPanel = ({
               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                 showBlueprint
                   ? "bg-orange-50 dark:bg-[#ff7417]/15 text-orange-600 dark:text-[#ff7417] border-orange-200 dark:border-orange-900/60"
-                  : "bg-zinc-50 dark:bg-[#2b2a27] text-zinc-400 dark:text-[#746e65] border-zinc-200 dark:border-[#39342f]"
+                  : "bg-zinc-50 dark:bg-[#2b2a27] text-zinc-400 dark:text-[#b4ada3] border-zinc-200 dark:border-[#39342f]"
               }`}
             >
               {showBlueprint ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -189,7 +189,7 @@ const CadPropertiesPanel = ({
                   }}
                   title="Collapse Property Inspector (Right Panel)"
                   aria-label="Collapse Property Inspector"
-                  className="p-1 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
+                  className="p-1 rounded-lg text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -213,7 +213,7 @@ const CadPropertiesPanel = ({
           <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-[#f5f0e8]">
             {selectedObjects.length} Elements Selected
           </h3>
-          <p className="text-[11px] text-zinc-500 dark:text-[#746e65] mt-0.5">
+          <p className="text-[11px] text-zinc-500 dark:text-[#b4ada3] mt-0.5">
             {typeSummary}
           </p>
           {onClearSelection && (
@@ -437,7 +437,7 @@ const CadPropertiesPanel = ({
                 }}
                 title="Collapse Property Inspector (Right Panel)"
                 aria-label="Collapse Property Inspector"
-                className="p-1 rounded-lg text-zinc-400 dark:text-[#746e65] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
+                className="p-1 rounded-lg text-zinc-400 dark:text-[#b4ada3] hover:text-zinc-700 dark:hover:text-[#f5f0e8] hover:bg-zinc-100 dark:hover:bg-[#2b2a27] transition-colors cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -461,7 +461,7 @@ const CadPropertiesPanel = ({
           </div>
         </div>
         <h3 className="font-serif text-base font-bold text-zinc-900 dark:text-[#f5f0e8] truncate">{name}</h3>
-        <span className="text-[11px] font-mono text-zinc-400 dark:text-[#746e65] block mt-0.5">{id}</span>
+        <span className="text-[11px] font-mono text-zinc-400 dark:text-[#b4ada3] block mt-0.5">{id}</span>
       </div>
 
       {/* Materials & Colors */}
@@ -576,7 +576,7 @@ const CadPropertiesPanel = ({
           <label className="block text-[11px] font-medium text-zinc-600 dark:text-[#b4ada3] mb-1.5">Center Position (m)</label>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">X</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">X</span>
               <input
                 type="number"
                 step="0.1"
@@ -586,7 +586,7 @@ const CadPropertiesPanel = ({
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">Y</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">Y</span>
               <input
                 type="number"
                 step="0.1"
@@ -596,7 +596,7 @@ const CadPropertiesPanel = ({
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">Z</span>
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">Z</span>
               <input
                 type="number"
                 step="0.1"
@@ -615,7 +615,7 @@ const CadPropertiesPanel = ({
           </label>
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">
                 {isWall ? "Length" : "L (X)"}
               </span>
               <input
@@ -628,7 +628,7 @@ const CadPropertiesPanel = ({
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">
                 {isWall ? "Height" : "H (Y)"}
               </span>
               <input
@@ -641,7 +641,7 @@ const CadPropertiesPanel = ({
               />
             </div>
             <div>
-              <span className="text-[10px] text-zinc-400 dark:text-[#746e65] font-mono">
+              <span className="text-[10px] text-zinc-400 dark:text-[#b4ada3] font-mono">
                 {isWall ? "Thickness" : "W (Z)"}
               </span>
               <input
