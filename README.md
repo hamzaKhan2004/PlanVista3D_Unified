@@ -1,143 +1,119 @@
-# PlanVista3D — Unified Architectural Visualization & 3D CAD Studio
+# PlanVista3D — Unified Architectural Studio
 
-PlanVista3D is an integrated, end-to-end architectural intelligence and visualization suite combining two complementary engineering workflows into a single cohesive web application:
+**Transform architectural floor plans into visualizations and interactive 3D building models.**
 
-1. **Photorealistic AI Visualization Mode**: Converts flat 2D architectural floor-plan images into realistic, top-down 3D visualizations with daylighting, materials, and furnishings using Puter Generative AI. Features an interactive before-and-after slider comparison.
-2. **Geometric 3D CAD Modeling Mode**: Programmatically reconstructs real 3D building meshes (`.glb`) from vector AutoCAD (`.dxf`) files and raster blueprints using OpenCV computer vision and headless Blender automation. Features an interactive WebGL Three.js canvas with 360° orbit, raycasted mesh selection, and color customization.
+PlanVista3D is a web-based architectural visualization platform that combines AI-powered blueprint visualization with 3D geometric modeling in one unified workspace. It brings image generation, 3D model viewing, CAD editing, project management, and AR model viewing together.
 
----
-
-## Architecture Topography
-
-```
-PlanVista3D/
-├── frontend/                          # Unified React 19 + Vite 7 SPA (JavaScript / JSX)
-│   ├── public/                        # Static assets, blueprints, icons
-│   ├── src/
-│   │   ├── app/                       # Application shell & React Router routes
-│   │   │   ├── App.jsx
-│   │   │   ├── Home.jsx               # Unified studio landing page
-│   │   │   └── routes.jsx             # Client-side route declarations
-│   │   ├── components/                # Reusable UI & Layout components
-│   │   │   ├── layout/                # Navbar & AppLayout (with Puter AuthContext)
-│   │   │   ├── ui/                    # Button and UI primitives
-│   │   │   └── projects/              # ProjectCard with dual-mode badges
-│   │   ├── features/                  # Business domain modules
-│   │   │   ├── image-generation/      # Puter AI floor-plan upload & comparison slider
-│   │   │   ├── model-generation/      # Blueprint upload, parameters & Three.js 3D editor
-│   │   │   └── project-gallery/       # Unified project catalog with category filters
-│   │   ├── lib/                       # API clients & utilities
-│   │   │   ├── puter/                 # Puter SDK, AI actions, hosting, and auth
-│   │   │   ├── api/                   # Flask backend API client & local persistence
-│   │   │   └── utils/                 # Constants, prompts, and blob formatting
-│   │   ├── styles/                    # Roomify design tokens & Tailwind CSS v4
-│   │   └── main.jsx                   # React root entry point
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js                 # Vite config with /api proxy to Flask (:5000)
-│
-├── backend/
-│   └── model-generation/              # Python Flask 3D Reconstruction Service
-│       ├── app.py                     # Flask API gateway & OpenCV contour analysis
-│       ├── generate_model.py          # Headless Blender script for DXF vector extrusion
-│       ├── generate_model_image.py    # Headless Blender script for image contour geometry
-│       ├── blueprint_to_3d.py         # [Prototype] Vision LLM floor-plan parser
-│       ├── requirements.txt           # Python package requirements
-│       ├── textures/                  # Material textures (e.g., wood floor)
-│       ├── uploads/                   # Temporary blueprint uploads
-│       └── outputs/                   # Generated .glb binary models
-│
-├── workers/
-│   └── puter/
-│       └── puter.worker.js            # Serverless worker for Puter KV project CRUD
-│
-├── docs/
-│   └── architecture/                  # Full 12-document architecture & audit package
-│
-├── .env.example                       # Environment configuration template
-└── README.md                          # Master documentation (this file)
-```
+**Live Demo:** https://planvista3d.onrender.com/  
+**Repository:** https://github.com/hamzaKhan2004/PlanVista3D_Unified
 
 ---
 
-## Prerequisites
+## Screenshots
 
-- **Node.js**: `v20.0.0` or newer (Tested with `v24.3.0`)
-- **Python**: `3.11` to `3.13` (Tested with `3.13.9`)
-- **Blender Foundation**: Blender 3.6, 4.x, or 5.0 (Tested with Blender 5.0 at `C:\Program Files\Blender Foundation\Blender 5.0\blender.exe`)
-- **Puter Account**: Optional for guest browsing; required for saving image renders to Puter Cloud.
+<!-- Add your screenshots to the assets/screenshots/ directory and replace these placeholders. -->
 
----
+| Overview | Architectural Visualization |
+|---|---|
+| ![PlanVista3D Overview](assets/screenshots/overview.png) | ![Generated Architectural Visualization](assets/screenshots/generated-visulization.png)
 
-## Quickstart Guide
+| 3D CAD Editor | AR Model Viewer |
+|---|---|
+| ![3D CAD Editor](assets/screenshots/cad-editor.png) | ![AR Model Viewer](assets/screenshots/ar-viewer.png) |
 
-### 1. Launch the Backend Model-Generation Service
+## Features
 
-Open a terminal in `backend/model-generation`:
+- **AI-Powered Blueprint Visualization:** Generate architectural visualizations from 2D floor-plan images.
+- **3D Building Modeling:** Generate and view 3D architectural models using the existing modeling workflow.
+- **Interactive CAD Editor:** Inspect and customize supported 3D models using the existing editor.
+- **Model Export:** Export supported 3D models in GLB format.
+- **Project Management:** Save and access projects through the application's existing persistence workflow.
+- **AR Model Viewing:** Open supported shared 3D models in a compatible browser or AR environment.
 
-```powershell
-cd backend/model-generation
+## Technology Stack
 
-# Create and activate virtual environment (if not already created)
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+| Area | Technologies |
+|---|---|
+| Frontend | React, JavaScript, Vite, Tailwind CSS |
+| 3D Visualization | Three.js, React Three Fiber |
+| Backend | Python, Flask |
+| Image Processing | OpenCV |
+| 3D Modeling | Blender |
+| Authentication | Puter.js |
+| Data and Storage | MongoDB Atlas, Amazon S3, ImageKit |
 
-# Install dependencies
-pip install -r requirements.txt
+## Architecture Overview
 
-# Start the Flask service
-python app.py
+1. Users interact with the React frontend to generate visualizations or work with 3D models.
+2. The Flask backend handles supported processing and model-generation workflows.
+3. OpenCV and Blender support the existing blueprint-processing and 3D-modeling pipeline.
+4. Project metadata and assets are persisted using the configured storage services.
+5. The frontend displays supported models in the CAD Editor and AR viewing workflow.
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js and npm
+- Python compatible with the backend dependencies
+- Git
+- Required service credentials for the features you want to run
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/hamzaKhan2004/PlanVista3D_Unified.git
+cd PlanVista3D
 ```
 
-The service will start on `http://localhost:5000`.
+Install frontend dependencies from the directory containing the frontend `package.json`:
 
-### 2. Launch the Unified Frontend
-
-Open a second terminal in `frontend`:
-
-```powershell
+```bash
 cd frontend
-
-# Install Node dependencies
 npm install
+```
 
-# Start Vite development server
+Configure the frontend environment using the variable names documented in the frontend `.env.example`, then start the development server:
+
+```bash
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+For the backend, open a separate terminal and follow the Python setup instructions and dependency files in the backend directory. Configure required backend variables using the supplied `.env.example` before starting Flask.
 
----
-
-## Studio Navigation Map
-
-| Route | View Name | Description |
-|---|---|---|
-| `/` | **Overview / Home** | Studio landing page presenting both primary pipelines, quick floor-plan upload, and recent projects. |
-| `/generate-image` | **Generate AI Render** | Upload 2D floor plans (PNG/JPG/WEBP) for photorealistic top-down rendering via Puter AI. |
-| `/generate-model` | **Generate 3D Model** | Upload CAD DXF or raster blueprints, configure wall height/thickness/floors, and build a 3D mesh. |
-| `/visualizer/:id` | **Image Visualizer** | Interactive Before/After comparison slider between original blueprint and 3D visual render. |
-| `/model-viewer/:taskId`| **3D CAD Canvas** | Interactive WebGL Three.js canvas with 360° orbit, camera elevation presets, and mesh tools. |
-| `/projects` | **Project Gallery** | Unified gallery displaying both AI visualizations and 3D CAD mesh models with category filters. |
-
----
+> Keep real API keys, database credentials, and storage secrets out of source control. Do not commit `.env` files containing secrets.
 
 ## Environment Configuration
 
-Copy `.env.example` to `frontend/.env.local` or set environment variables:
+Review the repository's `.env.example` files to identify the variables required for each service. Depending on the features enabled, these may include:
 
-| Variable | Default Value | Description |
-|---|---|---|
-| `VITE_PUTER_WORKER_URL` | `https://planvista-3d.puter.work` | Puter Serverless Worker endpoint for project persistence. |
-| `BLENDER_PATH` | System discovery | Path to Blender executable if not installed in standard location. |
-| `PORT` | `5000` | Port for the Python Flask backend service. |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origins for the Flask API. |
+- Frontend API base URL
+- Puter authentication configuration
+- MongoDB Atlas connection settings
+- Amazon S3 configuration
+- ImageKit configuration
+- Blender and Python runtime requirements
 
----
+Use actual variable names from the repository when configuring local development or deployment.
 
-## Design System
+## Deployment
 
-The unified application standardizes on the **PlanVistaRoomify design system**:
-- **Color Palette**: Warm off-white (`#fdfbf7`), crisp white surfaces, and vibrant orange accents (`#f97316` / `#ea580c`).
-- **Typography**: Editorial serif headings (`Instrument Serif`) and clean UI sans-serif (`Inter`).
-- **Components**: Rounded pill badges, soft warm shadows (`--shadow-warm`), and minimalistic card layouts.
+The application has a live frontend hosted on Render. Refer to the deployment and Docker configuration in the repository for the backend setup and required environment variables.
+
+The availability of individual features depends on the corresponding services and production configuration.
+
+## Project Motivation
+
+This project was inspired by the 2024 Smart India Hackathon (SIH) problem statement concerning the conversion of 2D architectural blueprints into 3D models. It explores how image processing, architectural visualization, and interactive 3D tools can be combined in a single web application.
+
+## Future Improvements
+
+- Improve architectural geometry reconstruction and model quality.
+- Enhance responsive CAD editing and cross-device AR compatibility.
+- Optimize model-generation performance and storage workflows.
+
+## License
+
+No license has been specified here. Add a `LICENSE` file if you intend to grant others permission to use, modify, or distribute this project.
